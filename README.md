@@ -134,6 +134,14 @@ pip freeze > requirements.lock
 > lock 으로 설치한 뒤에는 **반드시 `playwright install` 을 다시 실행**하세요.
 > 현재 검증된 조합: playwright 1.62.0 / chromium 151 · firefox 153 · webkit 26.5
 
+**검증된 환경** (세 조합 모두 전체 테스트 통과)
+
+| OS | Python | 비고 |
+|---|---|---|
+| Windows 10 | 3.12.10 | |
+| Windows 10 | 3.14.2 | 개발 환경 |
+| Linux (Debian) | 3.12.12 | CI 절차 그대로 재현 (`pip install -r requirements.lock` → `playwright install --with-deps`) |
+
 ---
 
 ## 2. 실행 방법

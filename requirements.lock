@@ -7,7 +7,9 @@
 #   pip install -r requirements.lock       <- 검증된 조합 그대로 (CI / 팀 공유 권장)
 #   pip install -r requirements.txt        <- 그 시점의 최신으로
 #
-# 검증 환경 : Python 3.14.2 / Windows 10   (Python 3.12+ 호환)
+# 검증 환경 : Windows 10 + Python 3.12.10 / 3.14.2
+#             Linux (Debian, python:3.12-slim 컨테이너) + Python 3.12.12
+#             세 조합 모두 전체 테스트 통과 확인
 # 생성일    : 2026-09-06
 # 갱신 방법 : 새 가상환경에 requirements.txt 로 설치 -> 테스트 전부 통과 확인 ->
 #             pip freeze > requirements.lock
