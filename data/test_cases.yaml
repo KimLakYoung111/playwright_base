@@ -1,0 +1,22 @@
+# 데이터 기반 테스트(Data Driven Test) 예시.
+# 테스트 코드는 그대로 두고 이 파일만 늘리면 케이스가 늘어납니다.
+#   @pytest.mark.parametrize("case", load_data("test_cases.yaml")["todo_cases"], ids=lambda c: c["id"])
+
+todo_cases:
+  - id: TC-DATA-001
+    description: 한 건 추가하면 남은 개수가 1이다
+    todos: ["회의록 정리"]
+    complete_index: null
+    expected_remaining: "1 item left"
+
+  - id: TC-DATA-002
+    description: 두 건 추가하면 남은 개수가 2이다
+    todos: ["회의록 정리", "테스트 케이스 작성"]
+    complete_index: null
+    expected_remaining: "2 items left"
+
+  - id: TC-DATA-003
+    description: 두 건 중 하나를 완료하면 남은 개수가 1이다
+    todos: ["회의록 정리", "테스트 케이스 작성"]
+    complete_index: 0
+    expected_remaining: "1 item left"

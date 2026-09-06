@@ -1,0 +1,8 @@
+# 개발 환경
+base_url: "https://demo.playwright.dev/todomvc/"
+api_base_url: "https://jsonplaceholder.typicode.com"
+
+headless: false            # 로컬 개발은 눈으로 보면서
+timeouts:
+  default: 30000
+retries: 0

@@ -1,0 +1,32 @@
+# ---------------------------------------------------------------------------
+# Playwright Automation Base - Python dependencies
+# Python 3.12+
+#
+# 이 파일은 "이 범위면 동작한다" 는 뜻입니다. 설치 시점의 최신이 깔립니다.
+# 팀/CI 에서 항상 똑같은 조합을 쓰려면 requirements.lock 을 쓰세요.
+#
+#   pip install -r requirements.lock    <- 검증된 조합 그대로 (권장)
+#   pip install -r requirements.txt     <- 그 시점의 최신으로
+# ---------------------------------------------------------------------------
+
+# Core
+playwright>=1.49,<2.0
+pytest>=8.0,<10.0
+pytest-playwright>=0.6,<1.0
+
+# Reporting
+pytest-html>=4.1,<5.0
+jinja2>=3.1,<4.0
+
+# Config / Env
+python-dotenv>=1.0,<2.0
+PyYAML>=6.0,<7.0
+
+# Parallel 실행 (선택)
+pytest-xdist>=3.5,<4.0
+
+# Retry (기본 0회, CI 에서만 사용 권장)
+pytest-rerunfailures>=14.0
+
+# API 사전조건 / 사후처리
+requests>=2.31,<3.0

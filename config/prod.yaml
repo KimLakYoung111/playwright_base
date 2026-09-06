@@ -1,0 +1,10 @@
+# 운영 환경
+#  주의: 운영에서는 데이터를 변경하는 테스트를 돌리지 않습니다.
+#        smoke 위주로만 사용하세요.  pytest --env=prod -m smoke
+base_url: "https://demo.playwright.dev/todomvc/"
+api_base_url: "https://jsonplaceholder.typicode.com"
+
+headless: true
+timeouts:
+  default: 45000           # 운영은 조금 더 여유있게
+retries: 0

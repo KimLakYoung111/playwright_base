@@ -1,0 +1,16 @@
+{
+  "_comment": "테스트 계정 정보. 비밀번호는 여기 두지 않고 .env 에 둡니다 (config/*.yaml 의 password_env 참고).",
+  "valid": {
+    "username": "standard_user",
+    "display_name": "표준 사용자"
+  },
+  "locked": {
+    "username": "locked_out_user",
+    "display_name": "잠긴 사용자",
+    "expected_message": "계정이 잠겼습니다."
+  },
+  "invalid": {
+    "username": "no_such_user",
+    "expected_message": "아이디 또는 비밀번호가 올바르지 않습니다."
+  }
+}

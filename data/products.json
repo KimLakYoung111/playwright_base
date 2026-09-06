@@ -1,0 +1,5 @@
+[
+  { "id": "P001", "name": "노트북 거치대", "price": 32000, "category": "사무용품" },
+  { "id": "P002", "name": "무선 키보드", "price": 78000, "category": "주변기기" },
+  { "id": "P003", "name": "USB-C 허브", "price": 45000, "category": "주변기기" }
+]

@@ -1,0 +1,55 @@
+# ---------------------------------------------------------------------------
+# 모든 환경의 공통 기본값.
+# config/<env>.yaml 이 이 파일을 덮어쓰고, .env(환경변수)가 그 위를 덮어쓰고,
+# CLI 옵션(--env / --browser / --headed / --base-url)이 최우선입니다.
+# ---------------------------------------------------------------------------
+
+project_name: "Example Automation"
+
+browser: chromium          # chromium | firefox | webkit
+headless: true
+slow_mo: 0                 # ms. 디버깅 시 200~500 정도로 올려서 확인
+
+timeouts:
+  default: 30000           # page.set_default_timeout (ms)
+  navigation: 45000        # page.set_default_navigation_timeout (ms)
+  expect: 10000            # expect(...) 기본 대기 (ms)
+
+viewport:
+  width: 1920
+  height: 1080
+
+locale: ko-KR
+timezone: Asia/Seoul
+ignore_https_errors: false
+
+# 프로젝트마다 필요한 값을 자유롭게 추가하세요.
+# 테스트에서는 run_config.get("features.new_checkout") 으로 꺼내 씁니다.
+# 환경별로 다르면 config/<env>.yaml 에서 덮어쓰면 됩니다.
+features:
+  new_checkout: true
+
+# Flaky 대응 재시도. 기본 0 (실제 오류를 숨기지 않기 위함)
+# CI 에서만 올리려면:  pytest --reruns 1
+retries: 0
+
+# Evidence 저장 정책: always | on-failure | never
+#  trace 를 on-failure 로 두면 실패 순간을 담기 위해 모든 테스트에서 수집을 시작하고
+#  통과하면 버립니다. 통과 테스트당 약 0.1~0.2초가 더 듭니다.
+#  실패 분석 가치가 훨씬 크므로 기본값으로 두고, 속도가 급하면 never 로 바꾸세요.
+evidence:
+  screenshot: on-failure
+  trace: on-failure
+  page_html: on-failure
+  log: on-failure
+
+# 계정 정보.
+#  - username 은 민감정보가 아니므로 yaml 에 둡니다.
+#  - password 는 절대 yaml 에 쓰지 않고 password_env 로 .env 의 변수명을 가리킵니다.
+accounts:
+  user:
+    username: "standard_user"
+    password_env: USER_PASSWORD
+  admin:
+    username: "admin_user"
+    password_env: ADMIN_PASSWORD

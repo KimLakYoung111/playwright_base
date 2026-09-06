@@ -1,0 +1,34 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# ---- Virtualenv ----
+.venv/
+venv/
+env/
+
+# ---- Secrets ----
+.env
+.env.*
+!.env.example
+
+# ---- Test artifacts ----
+artifacts/*
+!artifacts/.gitkeep
+test-results/
+playwright-report/
+.pytest_cache/
+.cache/
+auth_state/
+*.log
+
+# ---- IDE / OS ----
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db

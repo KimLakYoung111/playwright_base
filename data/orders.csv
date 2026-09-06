@@ -1,0 +1,5 @@
+﻿order_id,customer,product_id,quantity,status
+ORD-001,홍길동,P001,2,결제완료
+ORD-002,김영희,P002,1,배송중
+ORD-003,이철수,P003,3,배송완료
+ORD-004,박민수,P001,1,취소

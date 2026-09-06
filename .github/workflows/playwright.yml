@@ -1,0 +1,78 @@
+name: Playwright Tests
+
+# 필요한 트리거만 남기고 나머지는 지우세요.
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  schedule:
+    - cron: "0 21 * * *"          # 매일 06:00 KST (UTC 21:00)
+  workflow_dispatch:              # 수동 실행 (환경/marker 선택)
+    inputs:
+      env:
+        description: "실행 환경"
+        type: choice
+        options: [staging, dev, prod]
+        default: staging
+      marker:
+        description: "pytest marker (예: smoke, regression)"
+        type: string
+        default: smoke
+
+env:
+  PYTHONUTF8: "1"                 # 한글 로그가 깨지지 않게
+  HEADLESS: "true"                # CI 는 항상 headless
+
+jobs:
+  test:
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium]       # 필요하면 [chromium, firefox, webkit]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: 의존성 설치
+        # CI 는 항상 검증된 조합으로 돌립니다. 최신 버전 회귀를 미리 잡고 싶으면
+        # 별도 job 을 만들어 requirements.txt 로 돌리세요.
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.lock
+
+      - name: Playwright Browser 설치
+        run: python -m playwright install --with-deps ${{ matrix.browser }}
+
+      - name: 테스트 실행
+        env:
+          # 민감정보는 반드시 GitHub Secrets 로 넣습니다 (.env 는 커밋하지 않습니다).
+          USER_PASSWORD: ${{ secrets.USER_PASSWORD }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          API_TOKEN: ${{ secrets.API_TOKEN }}
+          RUN_ENV: ${{ github.event.inputs.env || 'staging' }}
+          RUN_MARKER: ${{ github.event.inputs.marker || 'smoke' }}
+        run: |
+          pytest --env="$RUN_ENV" \
+                 --browser=${{ matrix.browser }} \
+                 -m "($RUN_MARKER) and not failure_demo" \
+                 --reruns 1
+
+      - name: 결과 업로드 (실패해도 업로드)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-artifacts-${{ matrix.browser }}
+          path: artifacts/
+          retention-days: 14
+
+      - name: 요약 표시
+        if: always()
+        run: python -m reporting.ci_summary >> "$GITHUB_STEP_SUMMARY"

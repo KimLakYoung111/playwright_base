@@ -1,0 +1,8 @@
+# 스테이징 환경 (기본값)
+base_url: "https://demo.playwright.dev/todomvc/"
+api_base_url: "https://jsonplaceholder.typicode.com"
+
+headless: true
+timeouts:
+  default: 30000
+retries: 0
