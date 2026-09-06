@@ -1,6 +1,112 @@
-# HANDOFF: Playwright 자동화 공통 Base — ✅ done, 초기 구축·리뷰 반영·4개 환경 검증 완료
+# HANDOFF: Playwright 자동화 공통 Base
 
-## Current Status (2026-09-06): ✅ done — `main` (`b6be2eb..afb3cf3`, pushed) + 본 핸드오프는 `docs/handoff-20260906`
+> 최신 세션이 맨 위입니다. 아래로 갈수록 과거 기록입니다.
+
+---
+
+## Current Status (2026-09-06, 2회차): 🔵 결정 대기 — `docs/automation-guide` (`45b26ba`, pushed)
+
+> 자동화 개발자용 실무 가이드(`docs/AUTOMATION_GUIDE.md`)를 새로 쓰고 푸시했습니다.
+> 코드는 전부 통과 상태이고 남은 것은 **사람이 정해야 할 결정 4건**뿐입니다.
+> **다음 세션의 첫 할 일: 아래 「결정 대기 중인 것」 4건에 답을 받는 것.**
+> 특히 1번(가이드에 Claude/사람 역할 분리 절 추가)은 사용자가 직접 제기했고
+> 제안까지 나와 있으나 아직 승인 전입니다.
+
+### What was done (commit `45b26ba`)
+
+- **`docs/AUTOMATION_GUIDE.md` 신규** (`45b26ba`) — README 는 기능별 레퍼런스라
+  "새 화면을 받았다, 뭐부터 하나" 라는 작업 흐름이 비어 있었다.
+  특히 **`playwright codegen` 이 문서 어디에도 없었다** (자동화 개발자가 제일 많이 쓰는 도구).
+  8단계 워크스루 / 도구 4가지 / 자동화 대상 선정 기준 / 안티패턴 10개 /
+  Flaky 처방전 / 실패 분석 순서 / PR 체크리스트 / 치트시트.
+- **README 연결** (`45b26ba`) — 최상단에 두 문서의 역할 구분, 7·9·20장에서 해당 절로 링크.
+- **`test_id_attribute` 설정 추가** (`45b26ba`) — `get_by_test_id()` 가 `data-testid` 에
+  고정돼 있었다. 국내 사이트는 `data-qa` 등을 쓰는 경우가 많은데
+  "바꿀 수 없습니다" 라고 문서에 쓰느니 설정으로 빼는 게 맞다고 판단.
+  `utils/config.py:68` / `conftest.py:177` (세션 fixture `test_id_attribute`).
+
+### Gate results
+
+이 핸드오프 직전에 `docs/automation-guide` 브랜치에서 실제로 돌린 결과입니다.
+
+| 게이트 | 결과 |
+|---|---|
+| `pytest` | **30 passed, 4 deselected** (19.4s) |
+| `pytest -m failure_demo` | **3 failed, 1 skipped** (의도된 실패) |
+| `pytest -n 2` | **30 passed** (12.6s) |
+| `TEST_ID_ATTRIBUTE=data-qa` | 로그에 `get_by_test_id 기준 속성: data-qa` 확인 |
+| 문서 링크/앵커 | 참조 파일·README→가이드·내부 목차 전부 일치 |
+| 가이드의 pytest 옵션 6종 | 실제 `--help` 에 존재 확인 |
+
+### Decisions made (and why)
+
+- **가이드를 README 에 붙이지 않고 별도 파일로 뺐다.** README 는 이미 1000줄이고
+  성격이 다르다(레퍼런스 vs 워크플로우). 대신 README 최상단에서 역할을 구분해 안내한다.
+- **`test_id_attribute` 를 설정으로 뺐다** (위 참조). codegen 의 `--test-id-attribute` 와
+  같은 값을 쓰면 짝이 맞는다는 점을 양쪽 문서에 적었다.
+- **핸드오프와 가이드를 다른 브랜치로 분리했다.** 둘 다 `main` 기준이라 순서 상관없이
+  머지된다. 성격이 다른 변경을 한 PR 에 섞지 않기 위함.
+- **`codegen` 은 Claude 가 실행할 수 없다는 것을 확인했다.** GUI 브라우저를 띄워
+  사람이 클릭해야 한다. 이번 프로젝트에서 TodoMVC Locator 를 찾을 때도 codegen 대신
+  `page.content()` 로 DOM 을 떠서 읽었다. 이 한계가 역할 분리의 핵심 근거다.
+
+### ⚠️ 결정 대기 중인 것 (다음 세션의 실제 할 일)
+
+**1. 가이드에 「Claude 와 함께 쓰기」 절을 추가할지** — 사용자가 직접 제기한 문제.
+   현재 `docs/AUTOMATION_GUIDE.md` 에는 Claude 언급이 **한 군데도 없고**,
+   8단계 워크스루가 "사람이 혼자 다 한다" 는 전제로 쓰여 있다.
+   실제로는 Claude Code 로 작업하므로 문서와 실제 방식이 어긋난다.
+   제안한 내용(승인 전):
+   - 단계별 역할 분담표
+   - Claude 가 못 하는 것: codegen 같은 GUI 조작, 화면이 "이상한지" 판단, 업무 우선순위 결정
+   - 반드시 사람이 확인할 것: 단독/병렬/반복 실행 결과.
+     Claude 의 "통과했습니다" 를 그대로 믿지 말 것
+     (근거: 1회차에서 `role_page` Evidence 를 파일 단독 실행으로만 확인하고
+      "검증 완료" 라고 보고했다가 전체 실행에서 실패한 사례가 있었다)
+
+**2. 저장소에 `CLAUDE.md` 를 둘지** — 현재 없다.
+   두면 새 고객사 프로젝트에서 Claude 가 이 Base 의 규칙
+   (Locator 우선순위, 안티패턴, 커밋 전 게이트)을 매번 설명받지 않아도 지킨다.
+
+**3. 저장소 공개 범위** — 1회차부터 이월된 미결. 아직 **Public**.
+   현재 내용에 민감정보는 없다(확인함). 고객사 URL·계정이 들어갈 자리라 Private 권장.
+   ```bash
+   gh repo edit KimLakYoung111/playwright_base --visibility private \
+     --accept-visibility-change-consequences
+   ```
+
+**4. `docs/automation-guide` PR 생성 여부** — 브랜치만 올라가 있고 PR 이 없다.
+   (`docs/handoff-20260906` 는 PR #1 로 열려 있음)
+
+> 위 4건 모두 **사용자 승인 없이 실행하지 말 것.**
+
+### Next session
+
+1. 위 「결정 대기 중인 것」 4건 중 사용자가 답한 것부터 처리한다.
+2. 1번을 진행하기로 했다면 `docs/AUTOMATION_GUIDE.md` 목차 뒤에 새 장을 넣고,
+   README 최상단 안내에도 한 줄 추가한다. 게이트 재실행 후 `docs/automation-guide` 에 커밋.
+3. 동작 확인 기대값은 1회차와 동일하다.
+   ```bash
+   pytest                  # 30 passed, 4 deselected
+   pytest -m failure_demo  # 3 failed, 1 skipped  ← 의도된 실패
+   ```
+
+### 브랜치 현황
+
+| 브랜치 | 커밋 | 상태 |
+|---|---|---|
+| `main` | `afb3cf3` | Base 본체 |
+| `docs/handoff-20260906` | `eec7e45` → 이 커밋 | PR [#1](https://github.com/KimLakYoung111/playwright_base/pull/1) OPEN |
+| `docs/automation-guide` | `45b26ba` | 푸시됨, **PR 없음** |
+
+### Uncommitted / excluded
+
+1회차와 동일하다 (`.env`, `.venv/`, `artifacts/**`, `auth_state/`, 캐시).
+자격증명 위치도 그대로: `.env` (gitignored) / CI 는 GitHub Secrets.
+
+---
+
+## Current Status (2026-09-06, 1회차): ✅ done — `main` (`b6be2eb..afb3cf3`, pushed) + 본 핸드오프는 `docs/handoff-20260906`
 
 > 여러 고객사의 Playwright Python 자동화 프로젝트에서 공통 Base 로 쓸 스타터 킷을
 > 처음부터 만들고, 코드 리뷰에서 나온 결함 15건을 전부 고친 뒤,
