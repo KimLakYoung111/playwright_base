@@ -10,10 +10,12 @@
 실제 자동화는 이 Base 를 복사해 별도 저장소에서 합니다 (3회차 확정, 유효).
 이번 회차는 3회차 핸드오프의 「Remaining Work」 7개를 실제로 처리했습니다.
 
-## Current Status: Partially Complete
+## Current Status: Completed (3회차 잔여 작업 기준)
 
-**작업 자체는 끝났고 `PR #4` 가 열려 있습니다. 다음 세션의 첫 할 일은 PR #4 리뷰·머지입니다.**
-https://github.com/KimLakYoung111/playwright_base/pull/4
+3회차 「Remaining Work」 7개를 전부 처리하고 `PR #4` 로 `main` 에 머지했습니다
+(rebase 머지 — `feat` 과 `docs` 의 설계 근거를 따로 남기기 위해 이번만 squash 를 쓰지
+않았습니다). **다음 세션의 첫 할 일은 아래 「Remaining Work」 1번(데모 프로젝트 이전)** 이고,
+새로 시작할 만한 것은 3번(Template 경로 실증)입니다.
 
 ### What Was Done
 
@@ -34,9 +36,11 @@ https://github.com/KimLakYoung111/playwright_base/pull/4
 
 ### What Was NOT Done
 
-- **PR #4 미머지.** 커밋 2개가 `chore/handoff-remaining-work` 브랜치에 올라가 있습니다.
-- **이 `HANDOFF.md` 자체가 미커밋**입니다. 같은 브랜치에 얹어 PR 에 포함시키면 됩니다.
 - **macOS / 모바일 뷰포트 / SNS 로그인** — 여전히 미검증 (3회차부터 이월).
+- **Template 경로(`Use this template`)로 저장소를 만들어본 적이 없습니다.** 설정만 켰고,
+  3회차 데모는 폴더 복사로 했습니다.
+- **`.playwright-mcp/` 가 실제로 생기는 것을 이번 회차에는 못 봤습니다.** MCP 를 쓰지
+  않았기 때문입니다. `.gitignore` 규칙은 넣어뒀지만 실물 검증은 다음으로 넘어갑니다.
 
 ## What Worked
 
@@ -92,17 +96,18 @@ Python stdout 의 한글이 깨집니다. `PYTHONIOENCODING=utf-8` 로 **파일�
 
 ## Remaining Work
 
-1. **`HANDOFF.md`(이 파일)를 `chore/handoff-remaining-work` 브랜치에 커밋 후 푸시.**
-   PR #4 가 자동으로 갱신됩니다.
-2. **PR #4 리뷰 후 squash 머지, 브랜치 삭제.** 머지 후 게이트 3종 재실행
-   (아래 Verification Commands).
-3. **데모 프로젝트를 임시 폴더에서 옮기기** — 아직 살아 있는 것을 확인했습니다.
+1. **데모 프로젝트를 임시 폴더에서 옮기기** — 4회차 종료 시점에 아직 살아 있는 것을
+   확인했습니다.
    `%LOCALAPPDATA%\Temp\claude\C--Users-klyhj-dev-e2etest-playwright-base\0a7cd08f-6455-4d87-89f1-028ede4d8f49\scratchpad\qmeet_demo`
    → `C:\Users\klyhj\dev\e2etest\qmeet\` 등으로. **이 저장소에 넣으면 안 됩니다**
-   (껍데기 전용 원칙 위반). 임시 폴더라 언제든 사라질 수 있습니다.
+   (껍데기 전용 원칙 위반). 세션 임시 폴더라 언제든 사라질 수 있습니다.
+2. **`.playwright-mcp/` 실제 발생 확인** — MCP 로 Locator 를 조사할 때 `.gitignore` 가
+   제대로 먹는지 한 번 보면 됩니다. 별도 작업이 아니라 다음 조사에 끼워서 하세요.
+3. **Template 경로로 첫 고객사 프로젝트 실증** — 남은 것 중 **유일하게 새 정보를 주는
+   작업**입니다. GitHub 에서 "Use this template" 로 새 저장소를 만들어
+   [README 18장](README.md) 절차를 그대로 따라가 보고, 폴더 복사(3회차 방식)와
+   달라지는 지점이 있는지 확인하세요. 코드를 얹은 뒤에는 `/code-review` 를 붙입니다.
 4. **macOS / 모바일 뷰포트 / SNS 로그인 검증** (3회차부터 이월, 우선순위 낮음).
-5. **`.playwright-mcp/` 실제 발생 확인** — MCP 를 다시 쓸 때 `.gitignore` 가 제대로
-   먹는지 한 번 보세요. 이번에는 MCP 를 쓰지 않아 실물로 확인하지 못했습니다.
 
 ## Key File Paths
 
@@ -140,12 +145,16 @@ gh repo view --json isTemplate,visibility   # {"isTemplate":true,"visibility":"P
 
 ## Uncommitted Changes
 
-`HANDOFF.md`(이 파일) **하나뿐**입니다. 나머지는 전부 커밋·푸시됐습니다.
+**없습니다.** `git status` clean, `main` 은 `origin/main` 과 동기화돼 있고 열린 PR 도
+없습니다. 브랜치는 `main` 하나입니다.
+
+이번 회차가 `main` 에 남긴 커밋입니다 (PR #4, rebase 머지라 그대로 올라갔습니다).
 
 ```
-chore/handoff-remaining-work  (origin 과 동기화, PR #4)
-  docs: Claude 협업 가이드(9장)와 CLAUDE.md 규칙 추가
-  feat: 오래된 artifacts 실행 폴더 자동 정리
+docs: 핸드오프를 머지 후 상태로 갱신
+docs: 4회차 핸드오프 (3회차 잔여 작업 7개 처리)
+docs: Claude 협업 가이드(9장)와 CLAUDE.md 규칙 추가
+feat: 오래된 artifacts 실행 폴더 자동 정리
 ```
 
 > 이 문서에 `main` 의 커밋 해시를 적지 않습니다. 해시를 적으면 그것을 고치는
