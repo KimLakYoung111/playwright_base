@@ -187,13 +187,22 @@ artifacts 는 통과 실행 0.22 MB, 실패 3건 포함 0.68 MB (Trace 가 72%).
 
 | role | path |
 |---|---|
-| 가이드 (이번 회차 수정 대상) | `docs/AUTOMATION_GUIDE.md` |
-| 기능별 레퍼런스 | `README.md` |
+| **가이드 (다음 회차 수정 대상)** | `docs/AUTOMATION_GUIDE.md` |
+| 기능별 레퍼런스 (20장) | `README.md` |
 | 모든 배선 (설정·Browser·Evidence·리포트 hook) | `conftest.py` |
-| 설정 로딩 · `SUPPORTED_ENVS` 는 dev/staging/prod 고정 | `utils/config.py` |
-| `test_id_attribute` 기본값 | `config/default.yaml` |
+| 설정 로딩 (yaml + .env + CLI) · `SUPPORTED_ENVS` 는 dev/staging/prod 고정 | `utils/config.py` |
+| `test_id_attribute` 등 공통 기본값 | `config/default.yaml` |
+| 실행별 artifacts 폴더 (원자적 예약) | `utils/paths.py` |
+| 로깅 + 민감정보 마스킹 (`mask_secrets`) | `utils/logger.py` |
+| TC ID/제목/Category/Step, 재시도 리셋 | `utils/testmeta.py` |
+| Screenshot/HTML/Trace 저장 공통 진입점 | `utils/evidence.py` |
 | Page Object 부모 | `pages/base_page.py` |
+| 로그인 세션 재사용 (프로젝트가 `perform_login` 구현) | `fixtures/auth.py` |
+| 결과 수집 → result.json / Custom HTML | `reporting/result_collector.py`, `reporting/report_generator.py` |
+| **result.json 스키마 (외부 연동의 계약)** | `reporting/result_schema.md` |
+| Custom Report 템플릿 (단일 파일, CDN 없음) | `reporting/templates/report.html` |
 | 데이터 기반 테스트 로더 | `utils/data_loader.py` + `data/test_cases.yaml` |
+| CI 예시 | `.github/workflows/playwright.yml` |
 | **실증용 데모 프로젝트 (임시)** | `%LOCALAPPDATA%\Temp\claude\C--Users-klyhj-dev-e2etest-playwright-base\0a7cd08f-6455-4d87-89f1-028ede4d8f49\scratchpad\qmeet_demo` |
 
 데모 프로젝트에서 새로 쓴 파일 (Base 복사본 위에):
@@ -264,3 +273,12 @@ GitHub Actions ubuntu-latest (3.12.14) smoke 4 passed. **macOS 는 미검증.**
 - `ApiClient.set_token` — `.env` 의 `API_TOKEN` 이 있을 때만 도는 조건부 경로.
 - `fixtures/auth.py::perform_login` — `NotImplementedError`. **프로젝트가 채우는 자리**(의도).
   동작 예시는 `tests/example/test_role_session_example.py` 가 monkeypatch 로 보여준다.
+
+### 추천 스킬 (1회차부터 유효)
+
+- **`/code-review`** — 고객사 프로젝트를 이 Base 위에 얹은 뒤 얹은 코드에 대해 한 번.
+  1회차에 15건이 나왔고 그중 2건이 보안 문제였다. Base 본체를 고칠 때도 유효.
+- **`superpowers:verification-before-completion`** — "통과했다" 를 말하기 전에 실제 실행
+  결과를 붙이는 습관. 1회차에서 `role_page` Evidence 를 파일 단독 실행으로만 확인하고
+  "검증 완료" 라고 보고했다가 전체 실행에서 실패한 사례가 있었다.
+  3회차의 "Claude 는 요약하지 말고 출력을 그대로 붙인다" 규칙이 여기서 나왔다.
