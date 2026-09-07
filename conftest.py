@@ -24,7 +24,7 @@ from reporting.result_collector import ResultCollector
 from utils import evidence, testmeta
 from utils.config import SUPPORTED_ENVS, RunConfig, load_config
 from utils.logger import get_logger, sensitive_filter, setup_logging, test_log_capture
-from utils.paths import RunPaths, resolve_run_paths
+from utils.paths import RunPaths, prune_old_runs, resolve_run_paths
 from utils.steps import test_step  # noqa: F401  (테스트에서 conftest 경유로 쓰기 편하도록)
 
 pytest_plugins = ["fixtures.auth"]
@@ -141,6 +141,19 @@ def pytest_configure(config: pytest.Config) -> None:
             run_config.headless, run_config.base_url or "-",
         )
         logger.info("Artifacts: %s", paths.root)
+
+        # 오래된 실행 폴더 정리. 워커가 동시에 같은 폴더를 지우면 경쟁이 나므로
+        # 컨트롤러에서 한 번만 돌립니다. 정리 실패는 테스트 실행을 막지 않습니다.
+        try:
+            removed = prune_old_runs(run_config.artifacts_keep_days,
+                                     run_config.artifacts_keep_min_runs)
+        except OSError as exc:
+            logger.warning("오래된 Artifacts 정리 실패: %s", exc)
+        else:
+            if removed:
+                logger.info("오래된 Artifacts %d개 삭제 (보관 %d일, 최근 %d개 유지)",
+                            len(removed), run_config.artifacts_keep_days,
+                            run_config.artifacts_keep_min_runs)
 
 
 # ======================================================================
