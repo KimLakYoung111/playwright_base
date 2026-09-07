@@ -48,6 +48,15 @@ evidence:
   page_html: on-failure
   log: on-failure
 
+# 오래된 artifacts/<실행시각>/ 폴더 정리.
+#  실행을 시작할 때 보관 기간이 지난 폴더를 지웁니다.
+#  0 으로 두면 정리하지 않습니다(CI 처럼 매번 새 머신이면 불필요).
+artifacts:
+  keep_days: 14
+  # 기간이 지났어도 최근 N개는 남깁니다.
+  # 오래 쉬었다가 돌렸을 때 직전 실행 기록까지 통째로 날아가는 것을 막는 안전장치입니다.
+  keep_min_runs: 5
+
 # 계정 정보.
 #  - username 은 민감정보가 아니므로 yaml 에 둡니다.
 #  - password 는 절대 yaml 에 쓰지 않고 password_env 로 .env 의 변수명을 가리킵니다.

@@ -69,6 +69,10 @@ class RunConfig:
 
     retries: int = 0
 
+    #: 오래된 artifacts/<실행시각>/ 폴더 보관 정책. 0 이면 정리하지 않습니다.
+    artifacts_keep_days: int = 14
+    artifacts_keep_min_runs: int = 5
+
     screenshot_mode: str = "on-failure"   # always | on-failure | never
     trace_mode: str = "on-failure"
     page_html_mode: str = "on-failure"
@@ -218,6 +222,7 @@ def load_config(
     timeouts = merged.get("timeouts") or {}
     viewport = merged.get("viewport") or {}
     evidence = merged.get("evidence") or {}
+    artifacts_cfg = merged.get("artifacts") or {}
 
     resolved_browser = (browser or _env_str("BROWSER", merged.get("browser", "chromium"))).lower()
     if resolved_browser not in SUPPORTED_BROWSERS:
@@ -251,6 +256,10 @@ def load_config(
         test_id_attribute=_env_str("TEST_ID_ATTRIBUTE",
                                    merged.get("test_id_attribute", "data-testid")),
         retries=_env_int("RETRIES", int(merged.get("retries", 0))),
+        artifacts_keep_days=_env_int("ARTIFACTS_KEEP_DAYS",
+                                     int(artifacts_cfg.get("keep_days", 14))),
+        artifacts_keep_min_runs=_env_int("ARTIFACTS_KEEP_MIN_RUNS",
+                                         int(artifacts_cfg.get("keep_min_runs", 5))),
         screenshot_mode=_evidence_mode("SCREENSHOT_MODE", evidence.get("screenshot", "on-failure")),
         trace_mode=_evidence_mode("TRACE_MODE", evidence.get("trace", "on-failure")),
         page_html_mode=_evidence_mode("PAGE_HTML_MODE", evidence.get("page_html", "on-failure")),
