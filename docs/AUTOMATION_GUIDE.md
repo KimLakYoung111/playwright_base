@@ -10,6 +10,9 @@
 README 를 다 읽고 시작할 필요는 없습니다. 이 문서의 1장을 그대로 따라 하면
 첫 테스트가 나오고, 막히는 지점에서 README 의 해당 장을 찾아보면 됩니다.
 
+> **Claude Code 에게 맡길 생각이라면 [9장](#9-claude-와-함께-쓰기)을 먼저 보세요.**
+> 8단계 중 어디까지 넘길 수 있고 어디를 사람이 붙잡아야 하는지 정리돼 있습니다.
+
 ---
 
 ## 목차
@@ -22,6 +25,7 @@ README 를 다 읽고 시작할 필요는 없습니다. 이 문서의 1장을 �
 6. [실패했을 때 보는 순서](#6-실패했을-때-보는-순서)
 7. [PR 올리기 전 체크리스트](#7-pr-올리기-전-체크리스트)
 8. [명령어 치트시트](#8-명령어-치트시트)
+9. [Claude 와 함께 쓰기](#9-claude-와-함께-쓰기)
 
 ---
 
@@ -478,6 +482,7 @@ Step 은 **TC 명세서의 절차 한 줄**에 대응한다고 생각하면 적�
 | 병렬(`-n`)에서만 실패 | 같은 계정/데이터를 공유 | 계정·데이터를 테스트마다 분리 |
 | 첫 실행만 실패 | 캐시 워밍업 | 사전조건을 API 로 만들기 |
 | CI 에서만 실패 | 화면 크기·속도 차이 | `viewport` 고정 확인, Trace 로 CI 화면 확인 |
+| 특정 요소만 **늘** 못 찾음 | 뷰포트에 따라 DOM 이 통째로 다름 (모바일 드로어 ↔ 데스크톱) | 조사할 때의 창 크기를 `config` 의 `viewport` 와 맞추기 ([9장](#9-claude-와-함께-쓰기)) |
 | 시간이 지나면 실패 | 날짜 하드코딩 | 상대 날짜 사용 (`오늘+1일`) |
 
 ### 재시도로 덮지 마세요
@@ -569,7 +574,8 @@ pytest --headed --slowmo 500              # 눈으로 보기
 pytest -n 4                               # 병렬
 pytest -x                                 # 첫 실패에서 멈춤
 pytest --lf                               # 실패한 것만 다시
-pytest -m failure_demo                    # Evidence 동작 확인용
+pytest -m failure_demo                    # Evidence 동작 확인용 (의도적 실패)
+pytest -m base_unit                       # Base 자체 회귀 테스트 (브라우저 없음)
 
 # ─── 디버깅 ───────────────────────────────────────────
 page.pause()                              # 코드에 한 줄 넣고 --headed
@@ -580,6 +586,120 @@ cat artifacts/latest_run.txt              # 마지막 실행 폴더
 start <위 경로>\report\report.html        # Custom Report (Windows)
 python -m reporting.ci_summary            # Markdown 요약
 ```
+
+---
+
+## 9. Claude 와 함께 쓰기
+
+이 Base 위에서 **Claude Code 가 TC 정의 이후를 끝까지 할 수 있는지** 실제 로그인 사이트로
+검증했습니다. 결론은 "된다" 이고, 대신 **사람이 반드시 붙잡아야 하는 자리**가 있습니다.
+
+### 단계별로 누가 하나
+
+1장의 8단계에 그대로 대응합니다.
+
+| 단계 | 담당 | 왜 |
+|---|---|---|
+| 0. 대상 정하기 | **사람** | 무엇을 검증할 가치가 있는지는 업무 지식입니다. TC 가 없으면 Claude 도 못 씁니다 |
+| 1. 화면 훑기 | Claude | 아래 「codegen 경로가 둘이다」 |
+| 2. Locator 다듬기 | Claude | 1단계와 합쳐집니다 |
+| 3. Page Object | Claude | |
+| 4. 테스트 쓰기 | Claude | 0단계에서 사람이 쓴 TC 를 그대로 옮깁니다 |
+| 5. 눈으로 보며 돌리기 | **갈림** | "테스트가 도는가" 는 Claude, **"이 화면이 업무적으로 맞는가" 는 사람** |
+| 6. 막히면 멈춰 세우기 | Claude | |
+| 7. 안정성 확인 | Claude 실행 / **사람 판정** | 아래 「사람이 반드시 볼 것」 |
+| 8. 커밋 전 점검 | Claude 실행 / **사람 판정** | |
+
+**0단계와 5단계 후반이 사람의 자리입니다.** 나머지는 넘겨도 됩니다.
+
+### codegen 경로가 둘이다
+
+Claude 는 `playwright codegen` 창을 띄워 사람처럼 클릭할 수 없습니다.
+대신 **Playwright MCP** 가 같은 역할을 합니다 — 실행한 Playwright 코드를 그대로
+돌려주기 때문입니다.
+
+| | 사람 | Claude |
+|---|---|---|
+| 도구 | `playwright codegen <url>` | Playwright MCP |
+| 방식 | 브라우저에서 직접 조작하면 코드가 쌓임 | 접근성 트리를 읽고 요소를 지목 |
+| 출력 | 다듬어야 함 (2단계 필요) | **이미 깨끗함 (1·2단계가 하나)** |
+
+접근성 트리에서 요소를 고르므로 `#app > div:nth-child(2)` 같은 것이 **애초에 안 나옵니다.**
+그래서 Claude 에게는 1단계와 2단계의 구분이 없습니다.
+
+```text
+browser_navigate    →  화면 열기
+browser_snapshot    →  접근성 트리에서 역할·이름 확보   (= Locator 1·2순위)
+browser_click/type  →  상호작용 후 구조가 어떻게 변하는지
+browser_evaluate    →  data-testid 등 접근성 트리에 안 나오는 속성
+```
+
+검증: TodoMVC 에서 **기존 코드를 보지 않고** 뽑은 Locator 8개가
+`pages/example_page.py` 와 8/8 일치했습니다.
+
+### MCP 의 한계 3가지
+
+**① MCP 브라우저는 `pytest` 와 별개입니다.** 세션·쿠키가 공유되지 않습니다.
+Locator 조사 도구이지 테스트 실행 대체재가 아닙니다. 확인은 반드시 `pytest` 로 하세요.
+
+**② 커스텀 엘리먼트는 `get_by_role()` 로 안 잡힙니다.** 접근성 트리에 `generic` 으로만
+보입니다. 네이티브 요소가 아니므로 상태 단정도 다르게 해야 합니다.
+
+```python
+# 제출 버튼이 <button> 이 아니라 <qm-button data-cy="submit"> 인 경우
+
+# ✗ 역할이 없어서 못 찾는다
+page.get_by_role("button", name="제출")
+
+# ✗ 네이티브 button 이 아니라 disabled 상태를 이렇게는 못 읽는다
+expect(submit).to_be_disabled()
+
+# ✓ 속성을 직접 본다
+expect(page.get_by_test_id("submit")).to_have_attribute("disabled", "true")
+```
+
+**③ 작업 폴더에 `.playwright-mcp/` 를 만듭니다.** `.gitignore` 에 이미 넣어뒀습니다.
+
+### 규칙 — 조사 뷰포트를 테스트 뷰포트와 맞추세요
+
+**실제로 한 번 실패한 사례입니다.** 좁은 창에서 Locator 를 조사한 뒤 1920 으로 테스트를
+돌렸더니 그 요소가 아예 없었습니다. 같은 브라우저·같은 로그인 세션에서 **폭만 바꿔**
+재현했습니다.
+
+```text
+좁은 폭 (모바일 드로어)  ->  data-cy="logout-btn"   있음 / my-page-btn  없음
+1920x1080 (데스크톱)     ->  data-cy="my-page-btn"  있음 / logout-btn   없음
+```
+
+뷰포트에 따라 DOM 이 **통째로 달라지는** 사이트가 있습니다.
+조사를 시작하기 전에 창 크기를 `config` 의 `viewport`(기본 1920x1080)에 맞추세요.
+MCP 라면 `browser_resize` 를 먼저 부릅니다.
+[5장 Flaky 처방전](#5-flaky-처방전)의 같은 항목과 이어집니다.
+
+### 사람이 반드시 볼 것 — 실행 결과 3종
+
+Claude 가 쓴 "통과했습니다" 라는 문장은 증거가 아닙니다. **출력을 보세요.**
+
+```bash
+pytest tests/smoke/test_login.py::test_login_success   # 단독
+pytest -n 2                                            # 병렬
+# 연속 3회
+```
+
+[7장 체크리스트](#7-pr-올리기-전-체크리스트)의 「독립성」 항목과 같은 것입니다.
+이 셋을 통과하지 못한 테스트는 나중에 팀 전체의 시간을 먹습니다.
+
+> **Claude 에게 주는 규칙:** 실행 결과를 요약하지 말고 **터미널 출력을 그대로** 붙일 것.
+> 파일 하나만 돌려보고 "검증 완료" 라고 보고했다가 전체 실행에서 깨진 사례가 있었습니다.
+
+### 규칙은 `CLAUDE.md` 에 있습니다
+
+저장소 루트의 [`CLAUDE.md`](../CLAUDE.md) 에 Claude 가 지킬 규칙(Locator 우선순위,
+안티패턴, 손대면 안 되는 파일, 커밋 전 게이트)이 들어 있습니다. Claude Code 는 그 파일을
+자동으로 읽습니다.
+
+**사람이 읽을 설명은 이 가이드에, Claude 가 지킬 규칙은 `CLAUDE.md` 에** 두고 서로
+링크만 겁니다. 같은 내용을 두 군데 쓰면 반드시 어긋납니다.
 
 ---
 
@@ -595,3 +715,4 @@ python -m reporting.ci_summary            # Markdown 요약
 | API 로 사전조건 만들기 | [README 15장](../README.md) + `tests/example/test_api_example.py` |
 | result.json 스키마 (외부 연동) | [`reporting/result_schema.md`](../reporting/result_schema.md) |
 | 새 고객사 프로젝트 시작 | [README 18장](../README.md) |
+| Claude 가 지킬 규칙 (요약본) | [`CLAUDE.md`](../CLAUDE.md) |
