@@ -221,7 +221,8 @@ artifacts 는 통과 실행 0.22 MB, 실패 3건 포함 0.68 MB (Trace 가 72%).
 pytest                    # 30 passed, 4 deselected
 pytest -m failure_demo    # 3 failed, 1 skipped   ← 의도된 실패
 pytest -n 2               # 30 passed
-git log --oneline -1      # ae688d7  (3회차 핸드오프 머지 후)
+git status -sb            # main...origin/main, 변경 없음
+gh pr list                # 열린 PR 없음
 
 # 30 이 아니면 예제 사이트(demo.playwright.dev/todomvc) 변경을 먼저 의심할 것
 
@@ -235,9 +236,13 @@ du -sh "$LOCALAPPDATA/ms-playwright"
 
 ## Uncommitted Changes
 
-없습니다. `git status` clean, `main` 은 `origin/main` 과 동기화됨 (`ae688d7`).
-이번 회차 저장소 변경은 **PR #1·#2·#3 머지 커밋 3개뿐**이며, `HANDOFF.md` 외에
-파일을 직접 수정한 것은 없습니다. 열린 PR 도 없고 브랜치는 `main` 하나입니다.
+없습니다. `git status` clean, `main` 은 `origin/main` 과 동기화돼 있습니다.
+이번 회차 저장소 변경은 **PR #1·#2·#3 머지와 `HANDOFF.md` 갱신뿐**이며,
+그 외 파일을 직접 수정한 것은 없습니다. 열린 PR 도 없고 브랜치는 `main` 하나입니다.
+
+> 이 문서에 `main` 의 커밋 해시를 적지 않습니다. 해시를 적으면 그것을 고치는
+> 커밋이 다시 해시를 바꿔 영원히 어긋납니다(3회차에 실제로 한 번 겪음).
+> 위치 확인은 `git log --oneline -5` 로 커밋 제목을 보세요.
 
 머지 후 게이트 재확인: `pytest` → **30 passed, 4 deselected** (18.1s).
 
