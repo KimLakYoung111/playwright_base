@@ -1,216 +1,197 @@
-# HANDOFF: Playwright 자동화 공통 Base
+# HANDOFF: Base 브랜치 정리 + "Claude가 TC부터 코드까지 쓸 수 있는가" 실증
 
 > 최신 세션이 맨 위입니다. 아래로 갈수록 과거 기록입니다.
 
 ---
 
-## Current Status (2026-09-06, 2회차): 🔵 결정 대기 — `docs/automation-guide` (`45b26ba`, pushed)
+## Goal
 
-> 자동화 개발자용 실무 가이드(`docs/AUTOMATION_GUIDE.md`)를 새로 쓰고 푸시했습니다.
-> 코드는 전부 통과 상태이고 남은 것은 **사람이 정해야 할 결정 4건**뿐입니다.
-> **다음 세션의 첫 할 일: 아래 「결정 대기 중인 것」 4건에 답을 받는 것.**
-> 특히 1번(가이드에 Claude/사람 역할 분리 절 추가)은 사용자가 직접 제기했고
-> 제안까지 나와 있으나 아직 승인 전입니다.
+이 저장소는 여러 고객사의 Playwright 자동화에 공통으로 쓰는 **껍데기(템플릿) 전용**입니다.
+실제 자동화 프로젝트는 이 Base 를 복사해 **별도 저장소에서** 진행합니다 (사용자 확정, 3회차).
+이번 회차 목표는 ① 흩어진 브랜치를 `main` 하나로 정리하고 ② 이 Base 위에서
+**Claude Code 가 codegen 없이 TC 정의 이후를 끝까지 수행할 수 있는지** 실측으로 확인하는 것이었습니다.
 
-### What was done (commit `45b26ba`)
+## Current Status: Partially Complete
 
-- **`docs/AUTOMATION_GUIDE.md` 신규** (`45b26ba`) — README 는 기능별 레퍼런스라
-  "새 화면을 받았다, 뭐부터 하나" 라는 작업 흐름이 비어 있었다.
-  특히 **`playwright codegen` 이 문서 어디에도 없었다** (자동화 개발자가 제일 많이 쓰는 도구).
-  8단계 워크스루 / 도구 4가지 / 자동화 대상 선정 기준 / 안티패턴 10개 /
-  Flaky 처방전 / 실패 분석 순서 / PR 체크리스트 / 치트시트.
-- **README 연결** (`45b26ba`) — 최상단에 두 문서의 역할 구분, 7·9·20장에서 해당 절로 링크.
-- **`test_id_attribute` 설정 추가** (`45b26ba`) — `get_by_test_id()` 가 `data-testid` 에
-  고정돼 있었다. 국내 사이트는 `data-qa` 등을 쓰는 경우가 많은데
-  "바꿀 수 없습니다" 라고 문서에 쓰느니 설정으로 빼는 게 맞다고 판단.
-  `utils/config.py:68` / `conftest.py:177` (세션 fixture `test_id_attribute`).
+브랜치 정리와 실증은 **완료**. 문서화 3건과 결정 2건이 남아 있습니다.
+**다음 세션의 첫 할 일: 아래 「Remaining Work」 1번(「Claude와 함께 쓰기」 절 작성).**
+근거 데이터는 이 문서에 전부 들어 있어 재조사가 필요 없습니다.
 
-### Gate results
+### What Was Done
 
-이 핸드오프 직전에 `docs/automation-guide` 브랜치에서 실제로 돌린 결과입니다.
+| 항목 | 결과 | 검증 |
+|---|---|---|
+| PR #1(HANDOFF) · #2(가이드) 를 `main` 에 squash 머지, 브랜치 삭제 | `main` = `7f18d3f` | 머지 후 게이트 재실행 |
+| 합쳐진 `main` 게이트 재검증 | `pytest` **30 passed, 4 deselected** (22.0s) / `pytest -m failure_demo` **3 failed, 1 skipped** / Evidence 16파일 | 실행 출력 확인 |
+| PC 사양 요구치 실측 | 아래 「실측 데이터」 참고 | 3회 반복 측정 |
+| **Claude 단독 자동화 실증** (별도 데모 프로젝트) | TC 3종 6케이스 작성 → **6 passed** / 병렬 `-n 2` 6 passed / 연속 3회 6·6·6 | 게이트 3종 + 체크리스트 6항목 |
+| README 18장 "새 고객사 프로젝트 시작" 절차 검증 | Base 복사 → 설정 → 테스트 작성까지 문제없이 동작 | 데모 프로젝트로 실행 |
 
-| 게이트 | 결과 |
+> `main` 저장소 파일은 **머지 외에 한 줄도 수정하지 않았습니다.** (`git status` clean)
+> 실증은 전부 스크래치패드의 별도 복사본에서 진행했습니다.
+
+### What Was NOT Done
+
+- **`docs/AUTOMATION_GUIDE.md` 의 「Claude와 함께 쓰기」 절** — 근거 데이터는 다 모았으나 미작성.
+- **`CLAUDE.md`** — 미생성. 껍데기가 복사될 때 같이 따라가므로 가치가 큰 항목.
+- **Template repository 설정** — `gh repo edit --template` 미실행 (사용자 승인 전).
+- **artifacts 자동 정리** — Base 에 기능 없음. 최소 사양 PC 의 유일한 실질 제약.
+- **macOS / 모바일 뷰포트 / SNS 로그인** — 미검증.
+
+## What Worked
+
+**Playwright MCP 로 codegen 을 대체할 수 있습니다 (핵심 발견).**
+`browser_navigate` → `browser_snapshot`(접근성 트리) → `browser_type`/`click`(상호작용 후 구조 확인)
+→ `browser_evaluate`(testid 등 접근성 트리에 없는 속성) 순으로 Locator 를 확보했습니다.
+
+- MCP 는 실행한 Playwright 코드를 그대로 반환합니다. codegen 과 같은 역할입니다.
+- **출력이 codegen 보다 깨끗합니다.** 접근성 트리 기반이라 `#app > div:nth-child(2)` 같은
+  쓰레기가 안 나옵니다. 결과적으로 가이드의 **1단계와 2단계가 하나로 합쳐집니다.**
+- 검증: TodoMVC 에서 뽑은 Locator 8개가 기존 `pages/example_page.py` 와 **8/8 일치**
+  (기존 코드를 보지 않고 뽑은 뒤 대조).
+
+**로그인이 필요한 실무 SPA 에서도 사람 개입 없이 동작했습니다.**
+이메일 로그인이라 `auth_state` 사전 준비도 불필요했습니다.
+
+**`test_id_attribute` 설정(PR #2)이 첫 실전에서 바로 쓸모를 증명했습니다.**
+대상 사이트가 `data-cy` 를 쓰고 있어 `config/dev.yaml` 에 한 줄 넣는 것으로
+테스트 코드는 `get_by_test_id()` 를 그대로 쓸 수 있었습니다.
+
+**실패 분석은 가이드 6장 순서가 실제로 통합니다.** 리포트 → 스크린샷 → Page HTML 순으로
+따라가 근본 원인까지 도달했습니다 (아래 뷰포트 함정).
+
+## What Didn't Work / Gotchas
+
+**① 뷰포트에 따라 DOM 이 통째로 달라지는 사이트가 있습니다. (실제로 한 번 실패함)**
+좁은 창에서 조사하고 1920 으로 테스트를 돌려 실패했습니다.
+
+```
+좁은 폭 (모바일 드로어)  ->  data-cy="logout-btn"   있음 / my-page-btn 없음
+1920x1080 (데스크톱)     ->  data-cy="my-page-btn"  있음 / logout-btn  없음
+```
+
+같은 브라우저·같은 로그인 세션에서 **폭만 바꿔** 재현 확인했습니다.
+→ **규칙: 조사할 때의 뷰포트를 테스트 뷰포트(`config` 의 1920x1080)와 맞출 것.**
+가이드 5장 "CI 에서만 실패 → 화면 크기 차이" 항목의 실제 사례입니다.
+
+**② 커스텀 엘리먼트는 `get_by_role` 로 안 잡힙니다.**
+대상 사이트의 제출 버튼은 `<button>` 이 아니라 `<qm-button data-cy="submit">` 이었습니다.
+접근성 트리에도 `generic` 으로만 나옵니다. `to_be_disabled()` 도 통하지 않아
+`to_have_attribute("disabled", "true")` 로 판정해야 했습니다.
+
+**③ MCP 는 저장소 pytest 와 별개 브라우저입니다.** 세션·쿠키가 공유되지 않습니다.
+Locator 조사용이지 테스트 실행 대체재가 아닙니다.
+
+**④ MCP 가 작업 디렉터리에 `.playwright-mcp/` 를 만듭니다.** `.gitignore` 에 없어
+매번 수동 삭제했습니다. 정식 도입 시 추가 필요.
+
+**⑤ `playwright install` 은 옛 브라우저 버전을 지우지 않습니다.**
+이 PC 의 `%LOCALAPPDATA%\ms-playwright` 에 chromium 6개 버전이 쌓여 **4.88 GB** 였습니다.
+`playwright uninstall --all && playwright install chromium` 으로 약 4.2 GB 회수 가능.
+
+**⑥ 한글이 섞인 heredoc/`grep` 출력이 콘솔에서 깨집니다.** 판정이 필요한 검사는
+ASCII 키워드나 `unicode_escape` 로 출력해야 결과를 신뢰할 수 있습니다.
+
+**⑦ 리포트를 텍스트로 추출해 판정하면 `<img>` 를 놓칩니다.**
+`report.html` 에서 태그를 걷어내고 읽다가 "썸네일이 없다" 고 잘못 판단했습니다.
+실제로는 `templates/report.html` 에 `.thumbs` 블록과 라이트박스(`#lb`)가 이미 있고
+실패 건마다 스크린샷이 렌더링됩니다. 리포트 기능 판정은 텍스트 추출이 아니라
+**브라우저로 열어서** 하거나 태그를 직접 세야 합니다.
+
+## 결정 사항 (3회차)
+
+**리포트 스크린샷은 상대경로 참조를 유지한다 (base64 임베드하지 않음).**
+현재 `<img src="../screenshots/...">` 라서 `report.html` 파일만 떼어내면 이미지가 깨집니다.
+data URI 로 임베드하면 단일 파일이 되지만 채택하지 않았습니다.
+
+- Trace(0.49 MB)·Page HTML(3.68 MB)은 어차피 임베드 대상이 아니라
+  **이미지를 넣어도 여전히 폴더 단위 전달이 필요**합니다.
+- 실패가 많을수록 리포트가 무거워지는데, 실패가 많은 실행일수록 빨리 열어봐야 합니다.
+  (실패 3건 +140 KB, 20건이면 +1 MB, 50건이면 +2.5 MB)
+- CI 아티팩트는 원래 폴더째 zip 으로 받습니다.
+
+→ **운영 규칙: 리포트는 `artifacts/<실행시각>/` 폴더째 전달합니다.**
+단일 파일이 꼭 필요해지면(예: Slack 에 리포트 하나만 던지는 용도)
+`report.embed_screenshots` 옵션으로 빼는 안을 검토하되, 기본값은 끔으로 둡니다.
+
+## 실측 데이터 (PC 사양 요구치)
+
+측정 환경: i5-13400 (10코어/16스레드), RAM 31.8 GB, C: 여유 66.5 GB.
+`ms-playwright` 경로 프로세스만 필터링해 최대 메모리를 샘플링했습니다.
+
+| 실행 | 브라우저 최대 RAM | python 증가분 | 합계 | 소요 |
+|---|---|---|---|---|
+| 순차 | 248 MB | ~130 MB | ~380 MB | 14.1s |
+| `-n 2` | 499 MB | ~200 MB | ~700 MB | 9.4s (1.50배) |
+| `-n 4` | 988 MB | 331 MB | ~1.3 GB | 7.4s (1.91배) |
+| `--headed` | 328 MB | — | — | headless 대비 1.3배 |
+
+```
+필요 RAM ≈ 400 MB + 310 MB × 병렬 worker 수      (worker당 브라우저 247 + python 66)
+실무 사이트(무거운 SPA)는 2~3배로 보정할 것 — 측정 대상이 TodoMVC 였음
+권장 -n 값 = 물리코어의 절반 (그 이상은 CPU 경합으로 Flaky 증가)
+```
+
+디스크: chromium 만 700 MB / 3브라우저 1.2 GB / 파이썬 패키지 150 MB.
+artifacts 는 통과 실행 0.22 MB, 실패 3건 포함 0.68 MB (Trace 가 72%).
+실무 추정 60 MB/회 → 하루 10회면 600 MB/일. **정리 정책 없으면 참.**
+
+| | 최소 | 권장 |
+|---|---|---|
+| CPU | 4코어 (`-n 2`) | 8코어 이상 (`-n 4~6`) |
+| RAM | 8 GB | 16 GB 이상 |
+| 디스크 여유 | 5 GB | 20 GB 이상 |
+
+## 발견한 결함 의심 (대상 사이트, 개발팀 확인 필요)
+
+로그인 실패 시 피드백이 케이스마다 다릅니다.
+
+| 입력 | 화면에 뜨는 것 |
 |---|---|
-| `pytest` | **30 passed, 4 deselected** (19.4s) |
-| `pytest -m failure_demo` | **3 failed, 1 skipped** (의도된 실패) |
-| `pytest -n 2` | **30 passed** (12.6s) |
-| `TEST_ID_ATTRIBUTE=data-qa` | 로그에 `get_by_test_id 기준 속성: data-qa` 확인 |
-| 문서 링크/앵커 | 참조 파일·README→가이드·내부 목차 전부 일치 |
-| 가이드의 pytest 옵션 6종 | 실제 `--help` 에 존재 확인 |
+| 형식이 틀린 이메일 | "이메일이 올바르지 않습니다. 다시 한번 확인해주세요." (email 칸) |
+| 형식 맞음 + 틀린 비밀번호 | "비밀번호가 올바르지 않습니다. 다시 한번 확인해주세요." (password 칸) |
+| **형식 맞음 + 없는 계정** | **아무것도 뜨지 않음** — 오류 문구·토스트·다이얼로그 전부 없음 |
 
-### Decisions made (and why)
+의도된 account enumeration 방지일 수도 있으나, 그렇다면 모호한 문구라도 떠야 합니다.
+현재는 사용자가 "버튼이 안 먹는다" 로 인식합니다.
+**테스트로 만들지 않았습니다** — 버그라면 테스트가 버그를 정답으로 고정시키기 때문입니다.
 
-- **가이드를 README 에 붙이지 않고 별도 파일로 뺐다.** README 는 이미 1000줄이고
-  성격이 다르다(레퍼런스 vs 워크플로우). 대신 README 최상단에서 역할을 구분해 안내한다.
-- **`test_id_attribute` 를 설정으로 뺐다** (위 참조). codegen 의 `--test-id-attribute` 와
-  같은 값을 쓰면 짝이 맞는다는 점을 양쪽 문서에 적었다.
-- **핸드오프와 가이드를 다른 브랜치로 분리했다.** 둘 다 `main` 기준이라 순서 상관없이
-  머지된다. 성격이 다른 변경을 한 PR 에 섞지 않기 위함.
-- **`codegen` 은 Claude 가 실행할 수 없다는 것을 확인했다.** GUI 브라우저를 띄워
-  사람이 클릭해야 한다. 이번 프로젝트에서 TodoMVC Locator 를 찾을 때도 codegen 대신
-  `page.content()` 로 DOM 을 떠서 읽었다. 이 한계가 역할 분리의 핵심 근거다.
+## Remaining Work
 
-### ⚠️ 결정 대기 중인 것 (다음 세션의 실제 할 일)
+1. **`docs/AUTOMATION_GUIDE.md` 에 「Claude와 함께 쓰기」 절 추가.**
+   목차 뒤에 새 장을 넣고 README 최상단 안내에도 한 줄 추가. 담을 내용:
+   - 단계별 역할표 — 0단계 사람 / **1~4·6~8 Claude** / 5단계는 목적에 따라 갈림
+     (테스트 동작 확인은 Claude, "화면이 업무적으로 맞나" 는 사람)
+   - codegen 경로가 둘이라는 것: 사람은 `playwright codegen`, Claude 는 MCP snapshot
+   - **뷰포트를 맞추라는 규칙** (위 Gotcha ①, 실패 사례 포함)
+   - 사람이 반드시 확인할 것: 단독/병렬/연속 3회 실행 결과.
+     Claude 는 요약하지 말고 출력을 그대로 붙일 것
+2. **`CLAUDE.md` 생성** — Locator 우선순위, 안티패턴 10개, 커밋 전 게이트 2종,
+   손대지 말 파일(`conftest.py`/`reporting/`/`utils/`/`pages/base_page.py`).
+   규칙은 여기, 사람용 설명은 가이드에 두고 서로 링크 (중복 금지).
+3. **가이드 5장 Flaky 표에 뷰포트 행 추가** — "뷰포트에 따라 DOM 이 다름 → 조사 뷰포트와
+   테스트 뷰포트를 맞출 것". 다른 고객사에서도 밟을 함정.
+4. **`.gitignore` 에 `.playwright-mcp/` 추가** (Gotcha ④).
+5. **artifacts 자동 정리** — 보관 일수를 `config` 에 두고 오래된 실행 폴더 삭제.
+   `conftest.py`/`utils/paths.py` 에 걸치므로 작업 후 `/code-review` 권장.
+6. **Template repository 켜기** — `gh repo edit KimLakYoung111/playwright_base --template`.
+   껍데기 전용이므로 "Use this template" 이 fork 보다 적합 (히스토리가 안 따라감).
+7. **공개범위** — 현재 **Public**. 2회차의 Private 권장 근거("고객사 URL·계정이
+   `config/*.yaml` 에 들어갈 자리")는 **이 저장소에서 자동화를 하지 않기로 하면서 소멸**했습니다.
+   정책상 감추려는 게 아니면 Public 유지로 정리 가능.
 
-**1. 가이드에 「Claude 와 함께 쓰기」 절을 추가할지** — 사용자가 직접 제기한 문제.
-   현재 `docs/AUTOMATION_GUIDE.md` 에는 Claude 언급이 **한 군데도 없고**,
-   8단계 워크스루가 "사람이 혼자 다 한다" 는 전제로 쓰여 있다.
-   실제로는 Claude Code 로 작업하므로 문서와 실제 방식이 어긋난다.
-   제안한 내용(승인 전):
-   - 단계별 역할 분담표
-   - Claude 가 못 하는 것: codegen 같은 GUI 조작, 화면이 "이상한지" 판단, 업무 우선순위 결정
-   - 반드시 사람이 확인할 것: 단독/병렬/반복 실행 결과.
-     Claude 의 "통과했습니다" 를 그대로 믿지 말 것
-     (근거: 1회차에서 `role_page` Evidence 를 파일 단독 실행으로만 확인하고
-      "검증 완료" 라고 보고했다가 전체 실행에서 실패한 사례가 있었다)
+> 1~4번은 문서·설정이라 서로 독립적입니다. 5번만 Base 본체를 건드립니다.
+> **6·7번은 사용자 승인 없이 실행하지 마세요.**
 
-**2. 저장소에 `CLAUDE.md` 를 둘지** — 현재 없다.
-   두면 새 고객사 프로젝트에서 Claude 가 이 Base 의 규칙
-   (Locator 우선순위, 안티패턴, 커밋 전 게이트)을 매번 설명받지 않아도 지킨다.
-
-**3. 저장소 공개 범위** — 1회차부터 이월된 미결. 아직 **Public**.
-   현재 내용에 민감정보는 없다(확인함). 고객사 URL·계정이 들어갈 자리라 Private 권장.
-   ```bash
-   gh repo edit KimLakYoung111/playwright_base --visibility private \
-     --accept-visibility-change-consequences
-   ```
-
-**4. `docs/automation-guide` PR 생성 여부** — 브랜치만 올라가 있고 PR 이 없다.
-   (`docs/handoff-20260906` 는 PR #1 로 열려 있음)
-
-> 위 4건 모두 **사용자 승인 없이 실행하지 말 것.**
-
-### Next session
-
-1. 위 「결정 대기 중인 것」 4건 중 사용자가 답한 것부터 처리한다.
-2. 1번을 진행하기로 했다면 `docs/AUTOMATION_GUIDE.md` 목차 뒤에 새 장을 넣고,
-   README 최상단 안내에도 한 줄 추가한다. 게이트 재실행 후 `docs/automation-guide` 에 커밋.
-3. 동작 확인 기대값은 1회차와 동일하다.
-   ```bash
-   pytest                  # 30 passed, 4 deselected
-   pytest -m failure_demo  # 3 failed, 1 skipped  ← 의도된 실패
-   ```
-
-### 브랜치 현황
-
-| 브랜치 | 커밋 | 상태 |
-|---|---|---|
-| `main` | `afb3cf3` | Base 본체 |
-| `docs/handoff-20260906` | `eec7e45` → 이 커밋 | PR [#1](https://github.com/KimLakYoung111/playwright_base/pull/1) OPEN |
-| `docs/automation-guide` | `45b26ba` | 푸시됨, **PR 없음** |
-
-### Uncommitted / excluded
-
-1회차와 동일하다 (`.env`, `.venv/`, `artifacts/**`, `auth_state/`, 캐시).
-자격증명 위치도 그대로: `.env` (gitignored) / CI 는 GitHub Secrets.
-
----
-
-## Current Status (2026-09-06, 1회차): ✅ done — `main` (`b6be2eb..afb3cf3`, pushed) + 본 핸드오프는 `docs/handoff-20260906`
-
-> 여러 고객사의 Playwright Python 자동화 프로젝트에서 공통 Base 로 쓸 스타터 킷을
-> 처음부터 만들고, 코드 리뷰에서 나온 결함 15건을 전부 고친 뒤,
-> Windows(3.12/3.14) · Linux(Docker) · GitHub Actions 네 환경에서 검증을 마쳤습니다.
-> **다음 세션의 첫 할 일: 저장소 공개 범위 결정** (아래 "Next session" 1번).
-> 기능 작업은 남아 있지 않으며, 새로 붙일 일이 없다면 이 저장소는 그대로 배포 가능합니다.
-
----
-
-### What was done (commits `b6be2eb`..`afb3cf3`)
-
-- **Base 프로젝트 전체 신규 작성** (`aa35f61`) — 55개 파일.
-  환경관리(yaml→.env→CLI 3단), Page Object, 실행별 Artifact, Evidence 자동수집,
-  리포트 2종, `result.json` 표준 인터페이스, Marker/Category, CI 예시.
-  요구사항 34개 항목을 모두 반영했고 예제는 실제로 실행됩니다.
-- **검증 환경 기록** (`afb3cf3`) — `requirements.lock` 헤더와 README 에
-  실제로 통과 확인한 OS/Python 조합만 적었습니다. 추정치 아님.
-
-> 리뷰 지적 15건 수정과 미검증 영역 보강은 `aa35f61` 안에 함께 들어 있습니다
-> (커밋 전에 수정·검증을 끝낸 뒤 한 덩어리로 커밋했기 때문).
-> 무엇을 왜 고쳤는지는 아래 "Decisions made" 참고.
-
----
-
-### Gate results
-
-이 핸드오프를 쓰기 직전에 실제로 돌린 결과입니다.
-
-| 게이트 | 명령 | 결과 |
-|---|---|---|
-| 전체 | `pytest` | **30 passed, 4 deselected** (27.7s) |
-| Evidence | `pytest -m failure_demo` | **3 failed, 1 skipped** (의도된 실패) → Evidence 20개 파일 생성 |
-| 병렬 | `pytest -n 2` | **30 passed** (13.4s) |
-
-환경별 검증 (모두 전체 통과):
-
-| 환경 | Python | 결과 |
-|---|---|---|
-| Windows 10 | 3.12.10 | 30 passed |
-| Windows 10 | 3.14.2 | 30 passed (개발 환경) |
-| Linux (Debian, `python:3.12-slim` 컨테이너) | 3.12.12 | 30 passed — CI 절차 그대로 재현 |
-| **GitHub Actions (ubuntu-latest)** | 3.12.14 | **4 passed** (smoke) — run [34034537942](https://github.com/KimLakYoung111/playwright_base/actions/runs/34034537942) 전 스텝 success |
-
-부가 검증: `actionlint` 경고 0건 / 깨끗한 venv 에서 `requirements.lock` 설치 결과 28개 패키지 정확히 일치 /
-민감정보 마스킹(등록값·패턴·traceback) 유출 0건.
-
----
-
-### Decisions made (and why)
-
-**설계**
-
-- **pytest-playwright 를 재발명하지 않고 fixture 만 덮어썼다.**
-  `--browser` `--headed` `--base-url` 은 플러그인 것을 그대로 쓰고 `--env` 만 추가.
-  `browser_type_launch_args` / `browser_context_args` 에 설정값을 주입하는 방식(`conftest.py:167-183`).
-- **Evidence 는 Base 가 직접 관리한다.** 플러그인의 `--tracing`/`--screenshot` 은
-  Base 모드로 옮겨 담고 플러그인 수집은 끈다(`conftest.py:103-109`).
-  같은 Context 에 tracing 을 두 번 시작하면 충돌해 Trace 가 통째로 사라지기 때문.
-- **테스트 함수명은 영문, 설명은 docstring 한글.**
-  CI 로그 깨짐과 `-k` 필터 사용성 때문. 리포트에는 docstring 이 제목으로 나온다.
-- **`result.json` 을 표준 인터페이스로 고정.** Test Runner UI(PySide6)·Dashboard·
-  Slack 알림·Trend 는 전부 HTML 이 아니라 이 파일을 읽는다. 스키마: `reporting/result_schema.md`.
-- **tracing 기본값은 `on-failure` 유지.** 통과 테스트당 0.1~0.2초(측정: 9309ms vs 7190ms)를
-  더 쓰지만, 재현 안 되는 실패는 Trace 없으면 분석이 불가능하다. `config/default.yaml:36-39` 에 비용 명시.
-- **`requirements.txt`(범위) + `requirements.lock`(고정) 두 벌.**
-  Base 는 고객사마다 다른 시점에 복사해 가므로 재현성이 중요. CI 는 lock 사용.
-
-**리뷰 지적 15건 수정 (전부 재현 후 수정, 재현으로 확인)**
-
-- 🔴 에러 메시지·traceback 이 마스킹 없이 `result.json`/`report.html` 에 실림
-  → `mask_secrets()` 공개 함수화, 수집 단계에서 마스킹(`reporting/result_collector.py:145-149`)
-- 🔴 `record.exc_info` 미마스킹 → 필터가 `exc_text`/`stack_info` 까지 처리(`utils/logger.py:70-76`)
-- 🟠 재시도 시 `TestMeta` 재사용으로 Step 누적 → `reset_meta()` 신설(`utils/testmeta.py:171`)
-- 🟠 `browser` 필드 누락 → 병합 목록에 추가 + 멀티 브라우저일 때만 리포트에 열 추가
-- 🟠 `--tracing on` 충돌로 Trace 전멸 → 위 "Evidence 는 Base 가 직접" 결정으로 해결
-- 🟠 재시도 시 1차 로그 덮어씀 → `unique_path()` 적용(`conftest.py:239`)
-- 🟠 렌더러가 collector 레코드를 변형 → `to_dict()` 가 복사본 반환
-- 🟡 `--reruns 0` 무시(falsy 체크) / `.env` 오타 시 INTERNALERROR / `lru_cache` mutable 공유 /
-  실행폴더 TOCTOU / `OSError` 미포착 / `only_browser` 가 Category 로 잡힘 /
-  `.env.example` 이 yaml 을 덮어씀 / 모드 오타 무검증 — 전부 수정
-
-**리뷰에 반박한 것 1건**
-
-- `utils/interactions.py`·`utils/assertions.py` 가 "호출처 0 = 추측성 기능" 이라는 지적은
-  **요구사항 8·9번에서 명시적으로 요청된 항목**이라 삭제 대신 실행 가능한 예제를 붙였다
-  (`tests/example/test_interactions_example.py`).
-
-**추가로 잡은 것 (리뷰 목록 밖)**
-
-- `role_page` 로 만든 Page 는 Evidence 가 안 남던 구멍 → `page` fixture 와 같은 코드 경로로 통합.
-  파일명에 역할 꼬리표(`..._user.png`)를 붙여 구분(`fixtures/auth.py:111-150`).
-- `storage_state_factory` 가 캐시만 믿고 파일 존재를 확인하지 않던 문제 → 사라졌으면 재생성.
-- **Git CRLF 자동 변환이 `data/sample.pdf` 를 손상시킬 뻔함** → `.gitattributes` 추가,
-  커밋 후 바이트 비교로 무결성 확인.
-- 첫 푸시가 `workflow` 스코프 부족으로 통째 거부 → `gh auth refresh -s workflow` 로 해결.
-
----
-
-### Key files
+## Key File Paths
 
 | role | path |
 |---|---|
-| 모든 배선(설정·Browser·Evidence·리포트 hook) | `conftest.py` |
-| 설정 로딩 (yaml + .env + CLI 우선순위) | `utils/config.py` |
+| **가이드 (다음 회차 수정 대상)** | `docs/AUTOMATION_GUIDE.md` |
+| 기능별 레퍼런스 (20장) | `README.md` |
+| 모든 배선 (설정·Browser·Evidence·리포트 hook) | `conftest.py` |
+| 설정 로딩 (yaml + .env + CLI) · `SUPPORTED_ENVS` 는 dev/staging/prod 고정 | `utils/config.py` |
+| `test_id_attribute` 등 공통 기본값 | `config/default.yaml` |
 | 실행별 artifacts 폴더 (원자적 예약) | `utils/paths.py` |
 | 로깅 + 민감정보 마스킹 (`mask_secrets`) | `utils/logger.py` |
 | TC ID/제목/Category/Step, 재시도 리셋 | `utils/testmeta.py` |
@@ -220,65 +201,84 @@
 | 결과 수집 → result.json / Custom HTML | `reporting/result_collector.py`, `reporting/report_generator.py` |
 | **result.json 스키마 (외부 연동의 계약)** | `reporting/result_schema.md` |
 | Custom Report 템플릿 (단일 파일, CDN 없음) | `reporting/templates/report.html` |
-| 신규 담당자용 전체 가이드 (20장) | `README.md` |
+| 데이터 기반 테스트 로더 | `utils/data_loader.py` + `data/test_cases.yaml` |
 | CI 예시 | `.github/workflows/playwright.yml` |
+| **실증용 데모 프로젝트 (임시)** | `%LOCALAPPDATA%\Temp\claude\C--Users-klyhj-dev-e2etest-playwright-base\0a7cd08f-6455-4d87-89f1-028ede4d8f49\scratchpad\qmeet_demo` |
+
+데모 프로젝트에서 새로 쓴 파일 (Base 복사본 위에):
+`pages/qmeet_login_page.py` (Locator 근거 문서화 포함) · `pages/qmeet_home_page.py`
+(뷰포트 함정 경고 포함) · `tests/smoke/test_qmeet_login.py` (QM001~003) ·
+`data/login_cases.yaml` (이메일 형식 오류 4케이스) · `config/dev.yaml` · `.env`
+
+> ⚠️ 데모는 **임시 폴더**라 세션 종료 시 사라질 수 있습니다. 계속 쓰려면
+> `C:\Users\klyhj\dev\e2etest\qmeet\` 등으로 옮기세요. 이 저장소에 넣으면 안 됩니다
+> (껍데기 전용 원칙 위반).
+
+## Verification Commands
+
+```bash
+# 이 저장소 (기대값)
+pytest                    # 30 passed, 4 deselected
+pytest -m failure_demo    # 3 failed, 1 skipped   ← 의도된 실패
+pytest -n 2               # 30 passed
+git log --oneline -1      # 7f18d3f
+
+# 30 이 아니면 예제 사이트(demo.playwright.dev/todomvc) 변경을 먼저 의심할 것
+
+# 데모 프로젝트 (위 경로에서)
+python -m pytest tests/smoke/test_qmeet_login.py --env=dev        # 6 passed
+python -m pytest tests/smoke/test_qmeet_login.py --env=dev -n 2   # 6 passed
+
+# 브라우저 버전 누적 확인 (Gotcha ⑤)
+du -sh "$LOCALAPPDATA/ms-playwright"
+```
+
+## Uncommitted Changes
+
+없습니다. `git status` clean, `main` 은 `origin/main` 과 동기화됨 (`7f18d3f`).
+이번 회차 저장소 변경은 **PR #1·#2 머지 커밋 2개뿐**이며 파일 직접 수정은 없습니다.
+
+자격증명 위치 (값은 기록하지 않음): 데모 프로젝트의 `.env` (gitignored).
+`config/dev.yaml` 에는 계정 이메일과 `password_env` 변수명만 두었습니다.
+**이 저장소는 Public 이므로 고객사 URL·계정을 절대 커밋하지 마세요.**
 
 ---
 
-### Next session
+## Previous Handoff (archived)
 
-1. **저장소 공개 범위를 정한다.** 현재 **Public** 이다.
-   지금 커밋된 내용에 민감정보는 없다(`.env` 미포함, 비밀번호 실값 0건 확인).
-   다만 이 Base 는 앞으로 고객사 URL·계정이 `config/*.yaml` 에 들어갈 자리라 Private 권장.
-   ```bash
-   gh repo edit KimLakYoung111/playwright_base --visibility private \
-     --accept-visibility-change-consequences
-   ```
-   → 결정만 하면 명령 한 줄. **사용자 승인 없이 실행하지 말 것.**
+1·2회차 기록 중 아직 유효한 부분만 남깁니다. 전문은 커밋 `d470a32` 참고.
 
-2. **새 고객사 프로젝트를 시작한다면** README 18장 "새 고객사 프로젝트 시작하기" 의
-   9단계를 그대로 따른다. `conftest.py`/`reporting/`/`utils/`/`pages/base_page.py` 는 손대지 않는다.
+### 여전히 유효한 설계 결정
 
-3. **동작 확인이 필요하면** 아래가 기대값이다.
-   ```bash
-   pytest                  # 30 passed, 4 deselected
-   pytest -m failure_demo  # 3 failed, 1 skipped  ← 의도된 실패
-   ```
-   `pytest` 가 30이 아니면 예제 사이트(demo.playwright.dev/todomvc) 변경을 먼저 의심할 것.
+- **pytest-playwright 를 재발명하지 않고 fixture 만 덮어썼다.** `--browser` `--headed`
+  `--base-url` 은 플러그인 것을 쓰고 `--env` 만 추가 (`conftest.py:167-183`).
+- **Evidence 는 Base 가 직접 관리한다.** 플러그인의 `--tracing`/`--screenshot` 은 끈다
+  (`conftest.py:103-109`). 같은 Context 에 tracing 을 두 번 시작하면 Trace 가 통째로 사라진다.
+- **테스트 함수명은 영문, 설명은 docstring 한글.** docstring 이 리포트 제목이 된다.
+- **`result.json` 이 외부 연동의 표준 인터페이스.** 스키마: `reporting/result_schema.md`.
+- **tracing 기본값 `on-failure` 유지.** 통과 테스트당 0.1~0.2초를 더 쓰지만
+  재현 안 되는 실패는 Trace 없이 분석 불가.
+- **`requirements.txt`(범위) + `requirements.lock`(고정) 두 벌.** CI 는 lock 사용.
+- **`interactions.py`/`assertions.py` 는 요구사항 8·9번 명시 항목**이라 "호출처 0" 지적에
+  삭제 대신 실행 가능한 예제를 붙였다 (`tests/example/test_interactions_example.py`).
 
-4. **의존성을 올릴 때** README "버전 관리" 절 절차를 따른다.
-   새 venv → `requirements.txt` 설치 → 두 게이트 통과 확인 → `pip freeze > requirements.lock`.
-   Playwright 는 패키지와 브라우저 엔진이 짝이므로 `playwright install` 을 반드시 다시 실행.
+### 검증 완료 환경 (재검증 불필요)
 
-### 알려진 미검증 / 의도적 공백
+Windows 10 (3.12.10 / 3.14.2), Linux Debian `python:3.12-slim` (3.12.12) 전부 30 passed.
+GitHub Actions ubuntu-latest (3.12.14) smoke 4 passed. **macOS 는 미검증.**
+
+### 알려진 의도적 공백
 
 - `utils/interactions.py::wait_for_network_idle` — 권장하지 않는 API 라 예제 없음(의도).
-- `ApiClient.set_token` — `.env` 의 `API_TOKEN` 이 있을 때만 실행되는 조건부 경로.
+- `ApiClient.set_token` — `.env` 의 `API_TOKEN` 이 있을 때만 도는 조건부 경로.
 - `fixtures/auth.py::perform_login` — `NotImplementedError`. **프로젝트가 채우는 자리**(의도).
   동작 예시는 `tests/example/test_role_session_example.py` 가 monkeypatch 로 보여준다.
-- macOS 미검증. Windows/Linux/CI 만 확인.
 
----
+### 추천 스킬 (1회차부터 유효)
 
-### Suggested skills / 다음 세션 추천 스킬
-
-- `code-review` — 고객사 프로젝트를 이 Base 위에 얹은 뒤, 얹은 코드에 대해 한 번.
-  이번 회차에 15건이 나왔고 그중 2건이 보안 문제였다. Base 를 고칠 때도 유효.
-- `superpowers:verification-before-completion` — "통과했다" 를 말하기 전에 실제 실행 결과를 붙이는 습관.
-  이번에 `role_page` Evidence 를 파일 단독 실행으로만 확인했다가 전체 실행에서 실패한 사례가 있었다.
-
----
-
-### Uncommitted / excluded
-
-핸드오프 커밋 시점 기준, 아래는 **의도적으로 저장소에 넣지 않는다**.
-
-- `.env` — 실제 비밀번호/토큰. `.gitignore` 처리됨. `.env.example` 만 커밋(값은 비어 있음).
-- `.venv/` — 로컬 가상환경.
-- `artifacts/**` — 테스트 실행 결과. `artifacts/.gitkeep` 만 추적.
-- `auth_state/` — 로그인 세션 파일. 계정 쿠키/토큰이 들어간다.
-- `.pytest_cache/`, `__pycache__/` — 캐시.
-
-> 자격증명 위치: 테스트 계정 비밀번호는 `.env` (gitignored),
-> CI 는 GitHub Secrets(`USER_PASSWORD`, `ADMIN_PASSWORD`, `API_TOKEN`).
-> `config/*.yaml` 에는 변수명만 두고 값은 절대 쓰지 않는다.
+- **`/code-review`** — 고객사 프로젝트를 이 Base 위에 얹은 뒤 얹은 코드에 대해 한 번.
+  1회차에 15건이 나왔고 그중 2건이 보안 문제였다. Base 본체를 고칠 때도 유효.
+- **`superpowers:verification-before-completion`** — "통과했다" 를 말하기 전에 실제 실행
+  결과를 붙이는 습관. 1회차에서 `role_page` Evidence 를 파일 단독 실행으로만 확인하고
+  "검증 완료" 라고 보고했다가 전체 실행에서 실패한 사례가 있었다.
+  3회차의 "Claude 는 요약하지 말고 출력을 그대로 붙인다" 규칙이 여기서 나왔다.
