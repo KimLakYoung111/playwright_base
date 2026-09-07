@@ -12,6 +12,19 @@
 
 ---
 
+## 📖 문서는 두 개입니다
+
+| 문서 | 언제 보나 |
+|---|---|
+| **이 README** | 기능별 레퍼런스 — "이 기능은 어떻게 쓰나" |
+| **[자동화 스크립트 작성 가이드](docs/AUTOMATION_GUIDE.md)** | 작업 흐름 — **"새 화면을 받았다. 뭐부터 하나"** |
+
+**테스트를 처음 쓰는 분은 [가이드](docs/AUTOMATION_GUIDE.md)부터 보세요.**
+codegen 으로 Locator 뽑기 → Page Object → 테스트 → 디버깅 → 안정화까지
+8단계 워크스루가 있고, 안티패턴 도감·Flaky 처방전·PR 체크리스트가 붙어 있습니다.
+
+---
+
 ## 목차
 
 1. [빠른 시작](#1-빠른-시작)
@@ -338,6 +351,9 @@ playwright_base/
 │  └─ 20260906_133000/
 │     ├─ report/  screenshots/  traces/  html/  logs/
 │
+├─ docs/
+│  └─ AUTOMATION_GUIDE.md     스크립트 작성 실무 가이드 (워크스루·안티패턴·체크리스트)
+│
 ├─ .github/workflows/playwright.yml   GitHub Actions 예시
 ├─ conftest.py                모든 배선이 모이는 곳
 ├─ pytest.ini                 marker / 기본 옵션
@@ -451,6 +467,9 @@ def test_login(page, run_config):
 ---
 
 ## 7. 테스트 추가하기
+
+> 처음이라면 [자동화 가이드 1장 「첫 테스트 만들기 — 8단계 워크스루」](docs/AUTOMATION_GUIDE.md#1-첫-테스트-만들기--8단계-워크스루)
+> 를 따라가는 편이 빠릅니다. 이 장은 문법 요약입니다.
 
 `tests/` 아래 알맞은 폴더에 `test_*.py` 를 만듭니다.
 
@@ -603,6 +622,16 @@ self.header = Header(page, page.get_by_role("banner"))
 - 인덱스(`nth(3)`)에 기대지 말고 텍스트나 역할로 좁히세요.
 - 자동 생성된 클래스(`css-1a2b3c`)는 쓰지 마세요.
 - 안정적인 Locator 를 만들 수 없으면 **개발팀에 `data-testid` 추가를 요청**하는 것이 정답입니다.
+- Locator 를 손으로 추측하지 마세요. `playwright codegen <url>` 이 알려줍니다
+  ([가이드 2장](docs/AUTOMATION_GUIDE.md#2-손에-익혀야-할-도구-4가지)).
+- 사이트가 `data-testid` 대신 다른 속성을 쓰면 `config/default.yaml` 의
+  `test_id_attribute` 만 바꾸면 됩니다. 테스트 코드는 그대로입니다.
+
+  ```yaml
+  test_id_attribute: data-qa
+  ```
+
+  codegen 에도 같은 값을 넘기세요: `playwright codegen --test-id-attribute=data-qa <url>`
 - Locator 는 반드시 Page Object 안에 두고, 테스트 코드에는 쓰지 않습니다.
 
 ### 좋은 예 / 나쁜 예
@@ -999,3 +1028,7 @@ pytest tests/... --headed --slowmo 500     # 눈으로 보기
 PWDEBUG=1 pytest tests/...                 # Playwright Inspector (한 줄씩)
 playwright show-trace <trace.zip>          # 실패한 실행 되감아 보기
 ```
+
+실패했을 때 **무엇을 어떤 순서로 볼지**는
+[가이드 6장 「실패했을 때 보는 순서」](docs/AUTOMATION_GUIDE.md#6-실패했을-때-보는-순서)에 정리돼 있습니다.
+가끔 실패하는 테스트는 [가이드 5장 「Flaky 처방전」](docs/AUTOMATION_GUIDE.md#5-flaky-처방전)을 보세요.

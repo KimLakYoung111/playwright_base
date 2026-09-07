@@ -174,7 +174,23 @@ def browser_type_launch_args(browser_type_launch_args: dict, run_config: RunConf
 
 
 @pytest.fixture(scope="session")
-def browser_context_args(browser_context_args: dict, run_config: RunConfig) -> dict:
+def test_id_attribute(playwright: Any, run_config: RunConfig) -> str:
+    """``get_by_test_id()`` 가 찾을 속성을 정합니다.
+
+    사이트가 data-testid 대신 data-qa 같은 속성을 쓰면
+    config 의 ``test_id_attribute`` 만 바꾸면 됩니다. 테스트 코드는 그대로입니다.
+    codegen 을 쓸 때도 같은 값을 넘기세요: ``codegen --test-id-attribute=data-qa``
+    """
+    attribute = run_config.test_id_attribute
+    if attribute != "data-testid":
+        playwright.selectors.set_test_id_attribute(attribute)
+        logger.info("get_by_test_id 기준 속성: %s", attribute)
+    return attribute
+
+
+@pytest.fixture(scope="session")
+def browser_context_args(browser_context_args: dict, run_config: RunConfig,
+                         test_id_attribute: str) -> dict:
     args = dict(browser_context_args)
     args.setdefault("viewport", run_config.viewport)   # --device 를 쓰면 그쪽 값을 유지
     args.setdefault("locale", run_config.locale)

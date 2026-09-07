@@ -64,6 +64,9 @@ class RunConfig:
     timezone: str = "Asia/Seoul"
     ignore_https_errors: bool = False
 
+    #: get_by_test_id() 가 찾을 속성. 사이트가 data-qa 등을 쓰면 바꿉니다.
+    test_id_attribute: str = "data-testid"
+
     retries: int = 0
 
     screenshot_mode: str = "on-failure"   # always | on-failure | never
@@ -245,6 +248,8 @@ def load_config(
         ignore_https_errors=_env_bool(
             "IGNORE_HTTPS_ERRORS", bool(merged.get("ignore_https_errors", False))
         ),
+        test_id_attribute=_env_str("TEST_ID_ATTRIBUTE",
+                                   merged.get("test_id_attribute", "data-testid")),
         retries=_env_int("RETRIES", int(merged.get("retries", 0))),
         screenshot_mode=_evidence_mode("SCREENSHOT_MODE", evidence.get("screenshot", "on-failure")),
         trace_mode=_evidence_mode("TRACE_MODE", evidence.get("trace", "on-failure")),

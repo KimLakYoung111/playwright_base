@@ -23,6 +23,11 @@ locale: ko-KR
 timezone: Asia/Seoul
 ignore_https_errors: false
 
+# get_by_test_id() 가 찾을 속성.
+# 사이트가 data-qa / data-test 등을 쓰면 여기만 바꾸면 테스트 코드는 그대로입니다.
+# codegen 에도 같은 값을 넘기세요:  playwright codegen --test-id-attribute=data-qa <url>
+test_id_attribute: data-testid
+
 # 프로젝트마다 필요한 값을 자유롭게 추가하세요.
 # 테스트에서는 run_config.get("features.new_checkout") 으로 꺼내 씁니다.
 # 환경별로 다르면 config/<env>.yaml 에서 덮어쓰면 됩니다.
