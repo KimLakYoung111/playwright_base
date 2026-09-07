@@ -21,6 +21,10 @@ artifacts/*
 !artifacts/.gitkeep
 test-results/
 playwright-report/
+# Playwright MCP 가 Locator 조사 중 작업 폴더에 만드는 임시 폴더 (가이드 9장)
+.playwright-mcp/
+# Claude Code 가 병렬 작업용으로 만드는 worktree (저장소 전체 복사본이라 커밋 금지)
+.claude/worktrees/
 .pytest_cache/
 .cache/
 auth_state/

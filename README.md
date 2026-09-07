@@ -23,6 +23,11 @@
 codegen 으로 Locator 뽑기 → Page Object → 테스트 → 디버깅 → 안정화까지
 8단계 워크스루가 있고, 안티패턴 도감·Flaky 처방전·PR 체크리스트가 붙어 있습니다.
 
+**Claude Code 에게 맡길 생각이라면**
+[가이드 9장](docs/AUTOMATION_GUIDE.md#9-claude-와-함께-쓰기)을 보세요 — 8단계 중 어디까지
+넘길 수 있고 사람이 무엇을 반드시 확인해야 하는지 정리돼 있습니다. 규칙 자체는 루트의
+[`CLAUDE.md`](CLAUDE.md) 에 있고 Claude Code 가 자동으로 읽습니다.
+
 ---
 
 ## 목차
@@ -285,6 +290,37 @@ TRACE_MODE=always
 > 통과하면 버립니다. 통과 테스트당 약 0.1~0.2초가 더 듭니다. 실패 분석 가치가 훨씬
 > 크므로 기본값으로 두고, 속도가 급한 대규모 회귀에서만 `TRACE_MODE=never` 를 쓰세요.
 
+### 오래된 결과는 자동으로 지워집니다
+
+`artifacts/` 는 지우지 않으면 금세 찹니다 (실무 기준 회당 수십 MB, 하루 10회면 수백 MB).
+그래서 **실행을 시작할 때 보관 기간이 지난 실행 폴더를 정리합니다.**
+
+```yaml
+# config/default.yaml
+artifacts:
+  keep_days: 14        # 0 이면 정리하지 않음
+  keep_min_runs: 5     # 기간이 지났어도 최근 5개는 남김
+```
+
+```bash
+# .env 로 덮어쓰기
+ARTIFACTS_KEEP_DAYS=30
+ARTIFACTS_KEEP_MIN_RUNS=5
+```
+
+- 대상은 `artifacts/` 바로 아래의 **실행 폴더 형식(`20260906_133000`)뿐**입니다.
+  직접 만들어 둔 폴더나 `latest_run.txt` 는 건드리지 않습니다.
+- 나이는 **폴더 이름**으로 계산합니다. mtime 은 파일을 열어보거나 백업 도구가 스치기만
+  해도 바뀌어서 믿을 수 없습니다.
+- `keep_min_runs` 는 오래 쉬었다가 돌렸을 때 직전 실행 기록까지 통째로 날아가는 것을
+  막는 안전장치입니다.
+- 정리가 실패해도 (Windows 는 리포트나 Trace 를 열어둔 채면 파일이 잠깁니다)
+  테스트 실행은 그대로 진행됩니다.
+- CI 처럼 매번 새 머신이면 `keep_days: 0` 으로 꺼두세요.
+
+이 동작은 `tests/unit/` 이 회귀 테스트로 지키고 있습니다 (`pytest -m base_unit`).
+Base 자체 테스트라 고객사용 리포트에 섞이지 않도록 기본 실행에서는 빠져 있습니다.
+
 ---
 
 ## 5. 프로젝트 구조
@@ -295,6 +331,7 @@ playwright_base/
 │  ├─ smoke/                    배포 직후 최소 확인
 │  ├─ regression/               회귀 테스트
 │  ├─ e2e/                      업무 흐름 시나리오 (순서 의존 허용)
+│  ├─ unit/                     Base 자체 회귀 테스트 (pytest -m base_unit, 남겨두세요)
 │  └─ example/                  실행 가능한 예제 모음
 │     ├─ test_example.py          기본 흐름 + 데이터 기반 테스트
 │     ├─ test_base_page_example.py  BasePage 공통 메서드
@@ -355,6 +392,7 @@ playwright_base/
 │  └─ AUTOMATION_GUIDE.md     스크립트 작성 실무 가이드 (워크스루·안티패턴·체크리스트)
 │
 ├─ .github/workflows/playwright.yml   GitHub Actions 예시
+├─ CLAUDE.md                  Claude Code 가 자동으로 읽는 규칙 요약
 ├─ conftest.py                모든 배선이 모이는 곳
 ├─ pytest.ini                 marker / 기본 옵션
 ├─ requirements.txt           버전 범위 (하한선)
@@ -960,7 +998,7 @@ retries: 0
 ```
 
 **손대지 않아도 되는 것** — `conftest.py`, `reporting/`, `utils/`, `pages/base_page.py`,
-`components/base_component.py`, `api/api_client.py`.
+`components/base_component.py`, `api/api_client.py`, `tests/unit/`.
 공통 기능이 개선되면 Base 에서 고쳐 각 프로젝트로 내려보냅니다.
 
 ---
