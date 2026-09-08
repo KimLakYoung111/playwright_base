@@ -21,7 +21,7 @@ from playwright.sync_api import BrowserContext, Page, expect
 
 from reporting import report_generator
 from reporting.result_collector import ResultCollector
-from utils import evidence, testmeta
+from utils import evidence, runmeta, testmeta
 from utils.config import SUPPORTED_ENVS, RunConfig, load_config
 from utils.logger import get_logger, sensitive_filter, setup_logging, test_log_capture
 from utils.paths import RunPaths, prune_old_runs, resolve_run_paths
@@ -132,7 +132,15 @@ def pytest_configure(config: pytest.Config) -> None:
     worker_id = getattr(config, "workerinput", {}).get("workerid", "")
     setup_logging(paths.run_log, prefix=f"[{worker_id}] " if worker_id else "")
     sensitive_filter.register(*run_config.secrets())
-    config._pwbase_collector = ResultCollector(run_config, paths)  # type: ignore[attr-defined]
+
+    # 실행 메타는 실행당 한 번만 모읍니다. git 이 없어도 예외가 나지 않습니다.
+    run_meta = {
+        "git": runmeta.git_info(),
+        "triggered_by": runmeta.triggered_by(run_config.show_triggered_by),
+        "command": runmeta.command_line(),
+        "workers": runmeta.worker_count(config),
+    }
+    config._pwbase_collector = ResultCollector(run_config, paths, run_meta)  # type: ignore[attr-defined]
 
     if not hasattr(config, "workerinput"):      # xdist 워커에서는 중복 출력 방지
         logger.info(

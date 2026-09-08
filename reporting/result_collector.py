@@ -15,7 +15,7 @@ from typing import Any
 
 from utils.logger import mask_secrets
 
-SCHEMA_VERSION = "1.0"
+SCHEMA_VERSION = "1.1"
 
 #: 상태값 (result.json 의 tests[].status)
 PASSED, FAILED, SKIPPED, ERROR = "passed", "failed", "skipped", "error"
@@ -58,9 +58,13 @@ def _error_type(message: str) -> str:
 class ResultCollector:
     """실행 중 결과를 모아두는 객체. conftest 가 하나만 만들어 씁니다."""
 
-    def __init__(self, run_config: Any, run_paths: Any) -> None:
+    def __init__(self, run_config: Any, run_paths: Any,
+                 run_meta: dict[str, Any] | None = None) -> None:
         self.config = run_config
         self.paths = run_paths
+        #: conftest 가 실행 시작 때 한 번 모아 넘기는 실행 메타 (git/실행자/명령줄/병렬 수).
+        #: 못 모았으면 빈 dict 이고, to_dict() 가 빠진 키를 None 으로 채웁니다.
+        self.run_meta = run_meta or {}
         self.started_at = datetime.now()
         self.finished_at: datetime | None = None
         self._records: dict[str, dict[str, Any]] = {}
@@ -269,6 +273,13 @@ class ResultCollector:
                 "platform": f"{platform.system()} {platform.release()}",
                 "artifacts_dir": str(self.paths.root),
                 "exit_status": self.exit_status,
+                # --- schema 1.1 에서 추가된 실행 메타 ---
+                # 값을 못 구했어도 키는 남깁니다. 소비자가 KeyError 를 만나지 않게.
+                "app_version": cfg.app_version or None,
+                "git": self.run_meta.get("git"),
+                "triggered_by": self.run_meta.get("triggered_by"),
+                "command": self.run_meta.get("command"),
+                "workers": self.run_meta.get("workers", 1),
             },
             "summary": self.summary(),
             "categories": self.categories(),
