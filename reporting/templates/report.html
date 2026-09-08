@@ -268,6 +268,32 @@ footer{color:var(--muted);font-size:12px;text-align:center;margin-top:24px}
   </section>
   {% endif %}
 
+  {% if tests|length > 5 %}
+  <section class="panel" style="margin-bottom:18px">
+    <details>
+      <summary style="cursor:pointer;font-size:14px;font-weight:600;color:var(--muted);
+                      text-transform:uppercase;letter-spacing:.6px">
+        느린 테스트 Top 5
+      </summary>
+      <table style="margin-top:14px">
+        <thead><tr><th>Test ID</th><th>Test Name</th><th>Category</th><th class="num">수행시간</th></tr></thead>
+        <tbody>
+        {% for test in tests|sort(attribute="duration", reverse=true) %}
+          {% if loop.index <= 5 %}
+          <tr>
+            <td><strong>{{ test.test_id }}</strong></td>
+            <td>{{ test.name }}</td>
+            <td>{{ test.category }}</td>
+            <td class="num">{{ test.duration_text }}</td>
+          </tr>
+          {% endif %}
+        {% endfor %}
+        </tbody>
+      </table>
+    </details>
+  </section>
+  {% endif %}
+
   {% if failed_tests %}
   <section class="panel" style="margin-bottom:18px">
     <h2>Failed Tests ({{ failed_tests|length }})</h2>

@@ -155,3 +155,24 @@ def test_flaky_section_hidden_when_no_retries(tmp_path: Path) -> None:
     """재시도가 없으면 섹션을 그리지 않는다."""
     html = _render(tmp_path)
     assert 'id="flaky"' not in html
+
+
+def test_slow_tests_are_sorted_and_capped(tmp_path: Path) -> None:
+    """느린 순으로 5건까지만 보여준다."""
+    rows = [_test_row(test_id=f"TC{i:03d}", name=f"테스트 {i}", duration=float(i))
+            for i in range(1, 8)]
+    html = _render(tmp_path, tests=rows)
+
+    assert "느린 테스트" in html
+    # 섹션 안쪽만 본다. </details> 로 끊지 않으면 뒤따르는 All Tests 표까지
+    # 딸려 들어와 "잘렸는지" 를 확인할 수 없다.
+    slow_block = html.split("느린 테스트", 1)[1].split("</details>", 1)[0]
+    # 가장 느린 TC007(7.0초)은 나오고, 가장 빠른 테스트 1·2 는 잘린다
+    assert "테스트 7" in slow_block
+    assert "테스트 2" not in slow_block
+
+
+def test_slow_tests_hidden_when_few(tmp_path: Path) -> None:
+    """5건 이하면 순위가 의미 없으므로 섹션을 숨긴다."""
+    html = _render(tmp_path)
+    assert "느린 테스트" not in html
