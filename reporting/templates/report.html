@@ -221,6 +221,28 @@ footer{color:var(--muted);font-size:12px;text-align:center;margin-top:24px}
     {% else %}<div class="empty">수집된 결과가 없습니다.</div>{% endif %}
   </section>
 
+  {% if markers %}
+  <section class="panel" style="margin-bottom:18px">
+    <h2>Marker 별 결과</h2>
+    <table>
+      <thead><tr><th>Marker</th><th class="num">Total</th><th class="num">Passed</th><th class="num">Failed</th><th class="num">Skipped</th><th class="num">Pass Rate</th><th></th></tr></thead>
+      <tbody>
+      {% for mk in markers %}
+        <tr>
+          <td><span class="tag">{{ mk.name }}</span></td>
+          <td class="num">{{ mk.total }}</td>
+          <td class="num" style="color:var(--pass)">{{ mk.passed }}</td>
+          <td class="num" style="color:{{ 'var(--fail)' if mk.failed else 'inherit' }}">{{ mk.failed }}</td>
+          <td class="num">{{ mk.skipped }}</td>
+          <td class="num">{{ mk.pass_rate }}%</td>
+          <td><div class="minibar"><span style="width:{{ mk.pass_rate }}%"></span></div></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
   {% if failed_tests %}
   <section class="panel" style="margin-bottom:18px">
     <h2>Failed Tests ({{ failed_tests|length }})</h2>
