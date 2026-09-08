@@ -32,7 +32,7 @@ Dashboard, `ci_summary`)에 위험이 0 이다. **Step B(Task 5~8)** 는 새 모
   노출한다. 가릴 대상은 명령줄에 섞일 수 있는 비밀번호·토큰이다.
 - **이 저장소는 Public 이다.** 고객사 URL·계정을 커밋에 넣지 않는다.
 - 모든 작업 후 게이트 3종이 통과해야 한다:
-  `pytest` (30 passed, 12 deselected) / `pytest -m failure_demo` (3 failed, 1 skipped) /
+  `pytest` (30 passed) / `pytest -m failure_demo` (3 failed, 1 skipped) /
   `pytest -m base_unit`.
 
 ---
@@ -262,7 +262,7 @@ pytest
 pytest -m base_unit
 ```
 
-기대: `30 passed, 12 deselected` / `10 passed` (기존 8 + 새 2)
+기대: `30 passed` / `10 passed` (기존 8 + 새 2)
 
 - [ ] **Step 6: 커밋**
 
@@ -398,7 +398,7 @@ pytest
 pytest -m base_unit
 ```
 
-기대: `30 passed, 12 deselected` / `12 passed`
+기대: `30 passed` / `12 passed`
 
 ```bash
 cat > /tmp/cm.txt <<'EOF'
@@ -509,7 +509,7 @@ pytest
 pytest -m base_unit
 ```
 
-기대: `30 passed, 12 deselected` / `14 passed`
+기대: `30 passed` / `14 passed`
 
 ```bash
 cat > /tmp/cm.txt <<'EOF'
@@ -631,7 +631,7 @@ pytest -m base_unit
 pytest -m failure_demo
 ```
 
-기대: `30 passed, 12 deselected` / `15 passed` / `3 failed, 1 skipped`
+기대: `30 passed` / `15 passed` / `3 failed, 1 skipped`
 
 ```bash
 cat > /tmp/cm.txt <<'EOF'
@@ -907,7 +907,7 @@ pytest
 pytest -m base_unit
 ```
 
-기대: `30 passed, 12 deselected` / `23 passed` (15 + 8)
+기대: `30 passed` / `23 passed` (15 + 8)
 
 ```bash
 cat > /tmp/cm.txt <<'EOF'
@@ -1068,7 +1068,7 @@ pytest
 pytest -m base_unit
 ```
 
-기대: `30 passed, 12 deselected` / `27 passed`
+기대: `30 passed` / `27 passed`
 
 ```bash
 cat > /tmp/cm.txt <<'EOF'
@@ -1303,7 +1303,7 @@ pytest -m base_unit
 pytest -n 2
 ```
 
-기대: `30 passed, 12 deselected` / `33 passed` (27 + 6) / `30 passed`
+기대: `30 passed` / `33 passed` (27 + 6) / `30 passed`
 
 > `-n 2` 를 꼭 돌린다. 메타를 컨트롤러에서만 모으므로 xdist 에서 깨지지 않는지
 > 확인해야 한다.
@@ -1508,7 +1508,7 @@ pytest -m base_unit
 pytest -n 2
 ```
 
-기대: `30 passed, 12 deselected` / `3 failed, 1 skipped` / `36 passed` / `30 passed`
+기대: `30 passed` / `3 failed, 1 skipped` / `36 passed` / `30 passed`
 
 > **`base_unit` 36 의 내역:** 8(기존 `test_paths_retention`) + 10(`test_report_render`)
 > + 8(`test_runmeta`) + 4(`test_config_report`) + 6(`test_result_meta`).
