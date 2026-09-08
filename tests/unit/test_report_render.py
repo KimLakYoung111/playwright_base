@@ -188,3 +188,44 @@ def test_print_stylesheet_is_present(tmp_path: Path) -> None:
     assert ".controls" in print_block
     # 실패 카드가 페이지 중간에서 잘리지 않게 한다
     assert "break-inside" in print_block
+
+
+def _run_with_meta(**overrides: Any) -> dict[str, Any]:
+    """schema 1.1 메타가 채워진 run 블록."""
+    run = dict(_data()["run"])
+    run.update({
+        "app_version": "v2.14.3 (build 8821)",
+        "git": {"branch": "main", "commit": "5d1ed8b", "dirty": False},
+        "triggered_by": "klyhja",
+        "command": "pytest -m smoke -n 4 --env=staging",
+        "workers": 4,
+    })
+    run.update(overrides)
+    return run
+
+
+def test_header_shows_run_meta(tmp_path: Path) -> None:
+    """앱 버전·커밋·실행자·명령줄·병렬 수가 헤더에 나온다."""
+    html = _render(tmp_path, run=_run_with_meta())
+
+    assert "v2.14.3 (build 8821)" in html
+    assert "5d1ed8b" in html
+    assert "klyhja" in html
+    assert "pytest -m smoke -n 4 --env=staging" in html
+    assert "4 workers" in html
+
+
+def test_header_hides_missing_meta(tmp_path: Path) -> None:
+    """값이 null 이면 그 줄 자체를 그리지 않는다 (빈 칸을 남기지 않음)."""
+    html = _render(tmp_path, run=_run_with_meta(
+        app_version=None, git=None, triggered_by=None))
+
+    assert "App Version" not in html
+    assert "실행자" not in html
+
+
+def test_header_marks_dirty_worktree(tmp_path: Path) -> None:
+    """커밋 안 된 변경이 있으면 표시한다. 재현이 안 될 수 있다는 신호다."""
+    html = _render(tmp_path, run=_run_with_meta(
+        git={"branch": "main", "commit": "5d1ed8b", "dirty": True}))
+    assert "변경 있음" in html

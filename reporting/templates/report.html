@@ -153,12 +153,27 @@ footer{color:var(--muted);font-size:12px;text-align:center;margin-top:24px}
     <div class="sub">Test Execution Report &nbsp;·&nbsp; Run ID {{ run.run_id }}</div>
     <div class="metagrid">
       <div><span class="k">Environment</span><span class="v">{{ run.environment|upper }}</span></div>
+      {% if run.app_version %}
+      <div><span class="k">App Version</span><span class="v">{{ run.app_version }}</span></div>
+      {% endif %}
+      {% if run.git %}
+      <div><span class="k">Automation</span><span class="v">{{ run.git.branch or "-" }} @ {{ run.git.commit }}{% if run.git.dirty %} <span style="color:var(--skip)">(변경 있음)</span>{% endif %}</span></div>
+      {% endif %}
       <div><span class="k">Browser</span><span class="v">{{ run.browser|capitalize }}{% if run.headless %} (headless){% endif %}</span></div>
       <div><span class="k">Target URL</span><span class="v">{% if run.base_url %}<a href="{{ run.base_url }}" target="_blank" rel="noopener">{{ run.base_url }}</a>{% else %}-{% endif %}</span></div>
       <div><span class="k">시작</span><span class="v">{{ run.started_at|replace("T", " ") }}</span></div>
       <div><span class="k">종료</span><span class="v">{{ run.finished_at|replace("T", " ") }}</span></div>
       <div><span class="k">전체 수행시간</span><span class="v">{{ duration_text }}</span></div>
       <div><span class="k">Platform</span><span class="v">{{ run.platform }} · Python {{ run.python }} · Playwright {{ run.playwright }}</span></div>
+      {% if run.triggered_by %}
+      <div><span class="k">실행자</span><span class="v">{{ run.triggered_by }}</span></div>
+      {% endif %}
+      {% if run.command %}
+      <div><span class="k">실행 명령</span><span class="v" style="font-family:ui-monospace,Consolas,monospace;font-size:12px">{{ run.command }}</span></div>
+      {% endif %}
+      {% if run.workers and run.workers > 1 %}
+      <div><span class="k">병렬</span><span class="v">{{ run.workers }} workers</span></div>
+      {% endif %}
     </div>
   </header>
 

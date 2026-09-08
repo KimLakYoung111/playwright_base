@@ -1,4 +1,4 @@
-# result.json 스키마 (schema_version 1.0)
+# result.json 스키마 (schema_version 1.1)
 
 `artifacts/<run_id>/report/result.json` 의 구조입니다.
 이 파일은 **표준 인터페이스**입니다. Test Runner UI(PySide6), 사내 Dashboard,
@@ -8,7 +8,7 @@ Slack/Email 알림, Trend Report, CI 연동은 모두 HTML 이 아니라 이 JSO
 
 ```jsonc
 {
-  "schema_version": "1.0",
+  "schema_version": "1.1",
 
   "run": {
     "run_id": "20260906_133000",        // artifacts 폴더 이름과 동일
@@ -25,7 +25,18 @@ Slack/Email 알림, Trend Report, CI 연동은 모두 HTML 이 아니라 이 JSO
     "playwright": "1.62.0",
     "platform": "Windows 10",
     "artifacts_dir": "C:\\...\\artifacts\\20260906_133000",
-    "exit_status": 1                    // pytest 종료코드 (0=전부 성공)
+    "exit_status": 1,                   // pytest 종료코드 (0=전부 성공)
+
+    // --- schema 1.1 에서 추가 ---
+    "app_version": "v2.14.3 (build 8821)",  // 테스트 대상 앱 버전(주입). 없으면 null
+    "git": {                                // 자동 수집. .git 이 없으면 null
+      "branch": "main",
+      "commit": "5d1ed8b",
+      "dirty": false                        // 커밋 안 된 변경이 있으면 true
+    },
+    "triggered_by": "klyhja",               // 실행자. show_triggered_by=false 면 null
+    "command": "pytest -m smoke -n 4",      // 실행 명령 (비밀번호·토큰은 가려짐)
+    "workers": 4                            // xdist 병렬 수. 순차면 1
   },
 
   "summary": {
@@ -120,5 +131,7 @@ for test in result["tests"]:
 | Browser 별 성공률 | `tests[].browser` + `status` |
 | 환경별 성공률 | `run.environment` + `summary` |
 | Category 별 성공률 | `categories[]` |
+| 앱 버전별 성공률 | `run.app_version` + `summary` |
+| 커밋별 회귀 추적 | `run.git.commit` + `summary.pass_rate` |
 
 여러 실행의 `result.json` 을 DB 나 파일에 쌓기만 하면 위 지표를 모두 만들 수 있습니다.

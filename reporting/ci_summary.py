@@ -29,9 +29,20 @@ def to_markdown(data: dict) -> str:
     run, summary = data["run"], data["summary"]
     icon = "✅" if summary["failed"] == 0 else "❌"
 
+    # schema 1.1 부터. 옛 result.json 을 읽어도 죽지 않게 .get 을 쓴다.
+    version_bits = []
+    if run.get("app_version"):
+        version_bits.append(f"App `{run['app_version']}`")
+    if run.get("git"):
+        version_bits.append(f"Automation `{run['git']['branch']} @ {run['git']['commit']}`")
+
     lines = [
         f"## {icon} {run['project']} · {run['environment'].upper()} · {run['browser']}",
         "",
+    ]
+    if version_bits:
+        lines += [" · ".join(version_bits), ""]
+    lines += [
         "| Total | Passed | Failed | Skipped | Pass Rate | Duration |",
         "|---|---|---|---|---|---|",
         f"| {summary['total']} | {summary['passed']} | {summary['failed']} "
