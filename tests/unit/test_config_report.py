@@ -16,8 +16,9 @@ from utils.config import load_config
 pytestmark = pytest.mark.base_unit
 
 
-def test_app_version_defaults_to_empty() -> None:
+def test_app_version_defaults_to_empty(monkeypatch: pytest.MonkeyPatch) -> None:
     """기본값은 빈 문자열이다. 고객사마다 버전 체계가 달라 강제하지 않는다."""
+    monkeypatch.delenv("APP_VERSION", raising=False)
     config = load_config(env="staging")
     assert config.app_version == ""
 
@@ -29,7 +30,8 @@ def test_app_version_from_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     assert config.app_version == "v2.14.3 (build 8821)"
 
 
-def test_show_triggered_by_defaults_to_true() -> None:
+def test_show_triggered_by_defaults_to_true(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("SHOW_TRIGGERED_BY", raising=False)
     config = load_config(env="staging")
     assert config.show_triggered_by is True
 

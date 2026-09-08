@@ -67,9 +67,9 @@ class RunConfig:
     #: get_by_test_id() 가 찾을 속성. 사이트가 data-qa 등을 쓰면 바꿉니다.
     test_id_attribute: str = "data-testid"
 
-    # 테스트 대상 앱의 버전 (주입값). 비어 있으면 리포트에 표시하지 않습니다.
+    #: 테스트 대상 앱의 버전 (주입값). 비어 있으면 리포트에 표시하지 않습니다.
     app_version: str = ""
-    # 실행자 이름을 리포트에 남길지 (개인정보 우려로 끌 수 있음)
+    #: 실행자 이름을 리포트에 남길지 (개인정보 우려로 끌 수 있음)
     show_triggered_by: bool = True
 
     retries: int = 0
