@@ -185,14 +185,15 @@ def test_print_stylesheet_is_present(tmp_path: Path) -> None:
     html = _render(tmp_path)
     assert "@media print" in html
     print_block = html.split("@media print", 1)[1].split("</style>", 1)[0]
-    # 선택자가 어딘가에 "있기만" 한 게 아니라, 그 선택자들이 실제로
-    # display:none 규칙 하나에 함께 걸려 있는지 본다. 이렇게 안 하면
-    # display:block 으로 바꿔도 이 테스트는 통과한다.
-    hide_rule = re.search(r"([^{}]*)\{\s*display\s*:\s*none\b[^}]*\}", print_block)
-    assert hide_rule is not None, "display:none 규칙을 찾지 못했다"
-    selectors = hide_rule.group(1)
-    assert "#slow-tests" in selectors
-    assert "#all-tests" in selectors
+    # 선택자가 어딘가에 "있기만" 한 게 아니라, display:none 규칙 중 하나에
+    # 실제로 걸려 있는지 본다. re.search 로 첫 규칙만 보면, 가독성을 위해
+    # 규칙을 나누거나 print 블록 앞쪽에 다른 display:none 규칙이 추가될 때
+    # 이 테스트가 엉뚱하게 실패(또는 통과)한다. findall 로 전체 규칙을 모아
+    # "어떤 규칙에든" 선택자가 있는지 확인한다.
+    hide_rules = re.findall(r"([^{}]*)\{\s*display\s*:\s*none\b[^}]*\}", print_block)
+    assert hide_rules, "display:none 규칙을 찾지 못했다"
+    assert any("#slow-tests" in selectors for selectors in hide_rules)
+    assert any("#all-tests" in selectors for selectors in hide_rules)
     # 실패 카드가 페이지 중간에서 잘리지 않게 한다
     assert "break-inside" in print_block
 
