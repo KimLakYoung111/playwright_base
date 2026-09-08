@@ -169,7 +169,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;margin-top:24px}
         </div>
         <div class="row" style="margin-top:8px">
           <span style="color:var(--muted);font-size:12px">Duration {{ duration_text }}</span>
-          {% if summary.retried %}<span style="color:var(--skip);font-size:12px">재시도 {{ summary.retried }}건</span>{% endif %}
+          {% if summary.retried %}<a href="#flaky" style="color:var(--skip);font-size:12px">재시도 {{ summary.retried }}건</a>{% endif %}
         </div>
       </div>
     </div>
@@ -236,6 +236,31 @@ footer{color:var(--muted);font-size:12px;text-align:center;margin-top:24px}
           <td class="num">{{ mk.skipped }}</td>
           <td class="num">{{ mk.pass_rate }}%</td>
           <td><div class="minibar"><span style="width:{{ mk.pass_rate }}%"></span></div></td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  {% endif %}
+
+  {% set flaky_tests = tests|selectattr("retries")|list %}
+  {% if flaky_tests %}
+  <section class="panel" id="flaky" style="margin-bottom:18px">
+    <h2>재시도된 테스트 ({{ flaky_tests|length }})</h2>
+    <div style="color:var(--muted);font-size:12px;margin:-6px 0 12px">
+      한 번에 통과하지 못하고 재시도 끝에 결과가 정해진 테스트입니다.
+      반복해서 올라오면 테스트나 대상 화면이 불안정하다는 신호입니다.
+    </div>
+    <table>
+      <thead><tr><th>Test ID</th><th>Test Name</th><th>Category</th><th class="num">재시도</th><th>최종 결과</th></tr></thead>
+      <tbody>
+      {% for test in flaky_tests %}
+        <tr>
+          <td><strong>{{ test.test_id }}</strong></td>
+          <td>{{ test.name }}</td>
+          <td>{{ test.category }}</td>
+          <td class="num">{{ test.retries }}</td>
+          <td><span class="badge {{ test.status }}">{{ test.status|upper }}</span></td>
         </tr>
       {% endfor %}
       </tbody>

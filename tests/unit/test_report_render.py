@@ -115,3 +115,29 @@ def test_marker_section_hidden_when_empty(tmp_path: Path) -> None:
     """markers[] 가 비면 섹션 자체를 그리지 않는다."""
     html = _render(tmp_path, markers=[])
     assert "Marker 별 결과" not in html
+
+
+def test_flaky_section_lists_retried_tests(tmp_path: Path) -> None:
+    """retries > 0 인 테스트만 Flaky 목록에 나온다."""
+    html = _render(
+        tmp_path,
+        tests=[
+            _test_row(test_id="TC001", retries=0),
+            _test_row(test_id="TC002", name="흔들리는 결제", retries=2),
+        ],
+        summary={
+            "total": 2, "passed": 2, "failed": 0, "skipped": 0, "error": 0,
+            "xfailed": 0, "xpassed": 0, "pass_rate": 100.0,
+            "duration": 10.0, "retried": 1,
+        },
+    )
+    assert 'id="flaky"' in html
+    assert "흔들리는 결제" in html
+    # 요약의 "재시도 1건" 이 목록으로 가는 링크가 된다
+    assert 'href="#flaky"' in html
+
+
+def test_flaky_section_hidden_when_no_retries(tmp_path: Path) -> None:
+    """재시도가 없으면 섹션을 그리지 않는다."""
+    html = _render(tmp_path)
+    assert 'id="flaky"' not in html
