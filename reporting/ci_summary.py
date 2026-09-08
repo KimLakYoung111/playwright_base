@@ -34,7 +34,7 @@ def to_markdown(data: dict) -> str:
     if run.get("app_version"):
         version_bits.append(f"App `{run['app_version']}`")
     if run.get("git"):
-        version_bits.append(f"Automation `{run['git']['branch']} @ {run['git']['commit']}`")
+        version_bits.append(f"Automation `{run['git']['branch'] or '-'} @ {run['git']['commit']}`")
 
     lines = [
         f"## {icon} {run['project']} · {run['environment'].upper()} · {run['browser']}",

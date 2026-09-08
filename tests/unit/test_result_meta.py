@@ -64,8 +64,9 @@ def test_run_meta_is_merged() -> None:
     assert run["workers"] == 4
 
 
-def test_meta_keys_exist_even_without_run_meta() -> None:
+def test_meta_keys_exist_even_without_run_meta(monkeypatch: pytest.MonkeyPatch) -> None:
     """메타를 못 모았어도 키는 있고 값이 null 이다. 소비자가 KeyError 를 안 만난다."""
+    monkeypatch.delenv("APP_VERSION", raising=False)
     run = _collector().to_dict()["run"]
 
     assert run["git"] is None

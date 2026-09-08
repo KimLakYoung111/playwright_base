@@ -69,12 +69,17 @@ def test_git_info_reports_dirty_worktree(monkeypatch: pytest.MonkeyPatch) -> Non
 
 
 def test_command_line_masks_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
-    """명령줄에 섞인 비밀번호·토큰은 가려진다."""
+    """명령줄에 섞인 비밀번호·토큰은 가려진다.
+
+    ``--token=값`` 형태는 로거의 key=value 패턴이 register() 없이도 잡아낸다.
+    그래서 여기서는 key=value 형태가 아닌 맨 값(위치 인자)을 쓴다 —
+    이래야 register() 로 등록한 리터럴 매칭 경로를 실제로 검증하게 된다.
+    """
     from utils.logger import sensitive_filter
 
     sensitive_filter.register("s3cret-token")
     monkeypatch.setattr(sys, "argv",
-                        ["/long/path/to/pytest", "-m", "smoke", "--token=s3cret-token"])
+                        ["/long/path/to/pytest", "-m", "smoke", "s3cret-token"])
 
     line = runmeta.command_line()
 
