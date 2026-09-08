@@ -137,7 +137,8 @@ def pytest_configure(config: pytest.Config) -> None:
     # 워커 전부에서 돌기 때문에, 여기서 가드를 안 하면 -n 16 에 워커마다 git
     # 서브프로세스가 돌아 쓸모없이 느려지고, 워커의 command_line() 은 execnet
     # 부트스트랩 argv 를 읽어 의미 없는 값이 됩니다. 워커는 빈 dict 를 넘기고,
-    # ResultCollector.to_dict() 가 빠진 키를 None 으로 채웁니다.
+    # ResultCollector.to_dict() 는 빠진 키를 대부분 None 으로 채우지만
+    # workers 는 self.run_meta.get("workers", 1) 이라 기본값 1 이 됩니다.
     run_meta = {} if hasattr(config, "workerinput") else {
         "git": runmeta.git_info(),
         "triggered_by": runmeta.triggered_by(run_config.show_triggered_by),
