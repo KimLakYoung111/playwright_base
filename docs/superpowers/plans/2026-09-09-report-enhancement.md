@@ -975,8 +975,10 @@ from utils.config import load_config
 pytestmark = pytest.mark.base_unit
 
 
-def test_app_version_defaults_to_empty() -> None:
+def test_app_version_defaults_to_empty(monkeypatch: pytest.MonkeyPatch) -> None:
     """기본값은 빈 문자열이다. 고객사마다 버전 체계가 달라 강제하지 않는다."""
+    # 셸이나 CI 에 이 이름이 이미 떠 있으면 "기본값" 을 검증하지 못한다.
+    monkeypatch.delenv("APP_VERSION", raising=False)
     config = load_config(env="staging")
     assert config.app_version == ""
 
@@ -988,7 +990,8 @@ def test_app_version_from_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     assert config.app_version == "v2.14.3 (build 8821)"
 
 
-def test_show_triggered_by_defaults_to_true() -> None:
+def test_show_triggered_by_defaults_to_true(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("SHOW_TRIGGERED_BY", raising=False)
     config = load_config(env="staging")
     assert config.show_triggered_by is True
 
@@ -1030,9 +1033,9 @@ report:
 `utils/config.py` 의 `test_id_attribute: str = "data-testid"` (68행) 다음에 넣는다.
 
 ```python
-    # 테스트 대상 앱의 버전 (주입값). 비어 있으면 리포트에 표시하지 않습니다.
+    #: 테스트 대상 앱의 버전 (주입값). 비어 있으면 리포트에 표시하지 않습니다.
     app_version: str = ""
-    # 실행자 이름을 리포트에 남길지 (개인정보 우려로 끌 수 있음)
+    #: 실행자 이름을 리포트에 남길지 (개인정보 우려로 끌 수 있음)
     show_triggered_by: bool = True
 ```
 
