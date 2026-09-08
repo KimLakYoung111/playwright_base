@@ -36,7 +36,9 @@ def test_git_info_returns_none_when_command_fails(monkeypatch: pytest.MonkeyPatc
     """.git 이 없어 git 이 실패해도 None 을 준다."""
     class _Failed:
         returncode = 128
-        stdout = ""
+        # stdout 을 일부러 비우지 않는다. 비워두면 returncode 검사를 빼먹은 구현도
+        # 빈 문자열 덕분에 통과해 버려서, 이 테스트가 아무것도 지키지 못한다.
+        stdout = "5d1ed8b"
         stderr = "fatal: not a git repository"
 
     monkeypatch.setattr(subprocess, "run", lambda *a, **k: _Failed())
