@@ -133,8 +133,12 @@ def pytest_configure(config: pytest.Config) -> None:
     setup_logging(paths.run_log, prefix=f"[{worker_id}] " if worker_id else "")
     sensitive_filter.register(*run_config.secrets())
 
-    # 실행 메타는 실행당 한 번만 모읍니다. git 이 없어도 예외가 나지 않습니다.
-    run_meta = {
+    # 실행 메타는 컨트롤러에서만 모읍니다. pytest_configure 는 컨트롤러와 xdist
+    # 워커 전부에서 돌기 때문에, 여기서 가드를 안 하면 -n 16 에 워커마다 git
+    # 서브프로세스가 돌아 쓸모없이 느려지고, 워커의 command_line() 은 execnet
+    # 부트스트랩 argv 를 읽어 의미 없는 값이 됩니다. 워커는 빈 dict 를 넘기고,
+    # ResultCollector.to_dict() 가 빠진 키를 None 으로 채웁니다.
+    run_meta = {} if hasattr(config, "workerinput") else {
         "git": runmeta.git_info(),
         "triggered_by": runmeta.triggered_by(run_config.show_triggered_by),
         "command": runmeta.command_line(),
