@@ -11,6 +11,7 @@ Base 프레임워크 자체의 회귀 테스트라 고객사용 리포트에 섞
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -167,8 +168,9 @@ def test_slow_tests_are_sorted_and_capped(tmp_path: Path) -> None:
     # 섹션 안쪽만 본다. </details> 로 끊지 않으면 뒤따르는 All Tests 표까지
     # 딸려 들어와 "잘렸는지" 를 확인할 수 없다.
     slow_block = html.split("느린 테스트 Top 5", 1)[1].split("</details>", 1)[0]
-    # 가장 느린 TC007(7.0초)은 나오고, 가장 빠른 테스트 1·2 는 잘린다
+    # 가장 느린 TC007(7.0초)은 나오고, 가장 빠른 테스트 1·2 는 잘린다 (둘 다 확인)
     assert "테스트 7" in slow_block
+    assert "테스트 1" not in slow_block
     assert "테스트 2" not in slow_block
 
 
@@ -179,13 +181,18 @@ def test_slow_tests_hidden_when_few(tmp_path: Path) -> None:
 
 
 def test_print_stylesheet_is_present(tmp_path: Path) -> None:
-    """인쇄용 규칙이 들어 있고, 전체 테스트 표를 숨긴다."""
+    """인쇄용 규칙이 들어 있고, 전체 테스트 표 섹션 자체를 숨긴다."""
     html = _render(tmp_path)
     assert "@media print" in html
     print_block = html.split("@media print", 1)[1].split("</style>", 1)[0]
-    # 전체 테스트 표와 필터 버튼은 인쇄에서 뺀다
-    assert "#tests" in print_block
-    assert ".controls" in print_block
+    # 선택자가 어딘가에 "있기만" 한 게 아니라, 그 선택자들이 실제로
+    # display:none 규칙 하나에 함께 걸려 있는지 본다. 이렇게 안 하면
+    # display:block 으로 바꿔도 이 테스트는 통과한다.
+    hide_rule = re.search(r"([^{}]*)\{\s*display\s*:\s*none\b[^}]*\}", print_block)
+    assert hide_rule is not None, "display:none 규칙을 찾지 못했다"
+    selectors = hide_rule.group(1)
+    assert "#slow-tests" in selectors
+    assert "#all-tests" in selectors
     # 실패 카드가 페이지 중간에서 잘리지 않게 한다
     assert "break-inside" in print_block
 
@@ -222,6 +229,10 @@ def test_header_hides_missing_meta(tmp_path: Path) -> None:
 
     assert "App Version" not in html
     assert "실행자" not in html
+    # git 이 None 이면 {% if run.git %} 가드가 걸러야 한다. 가드를 지워도
+    # Jinja 가 None.branch 를 빈 문자열로 렌더해 라벨만 남을 수 있다.
+    # (run.project 기본값이 "Example Automation" 이라 "Automation" 부분 문자열은 못 쓴다)
+    assert '<span class="k">Automation</span>' not in html
 
 
 def test_header_marks_dirty_worktree(tmp_path: Path) -> None:
