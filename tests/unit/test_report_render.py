@@ -136,6 +136,20 @@ def test_flaky_section_lists_retried_tests(tmp_path: Path) -> None:
     # 요약의 "재시도 1건" 이 목록으로 가는 링크가 된다
     assert 'href="#flaky"' in html
 
+    # flaky 섹션 슬라이싱: retries > 0 인 테스트만 포함, retries=0 은 제외
+    flaky_start = html.find('id="flaky"')
+    assert flaky_start != -1, "flaky 섹션을 찾을 수 없음"
+    flaky_end = html.find("</section>", flaky_start)
+    assert flaky_end != -1, "flaky 섹션 종료 태그를 찾을 수 없음"
+    flaky_section = html[flaky_start:flaky_end + len("</section>")]
+
+    # retried test (TC002) 는 flaky 섹션에 있어야 함
+    assert "흔들리는 결제" in flaky_section, "TC002가 flaky 섹션에 없음"
+    assert "TC002" in flaky_section, "TC002 ID가 flaky 섹션에 없음"
+
+    # non-retried test (TC001) 는 flaky 섹션에 없어야 함
+    assert "TC001" not in flaky_section, "TC001이 flaky 섹션에 포함됨 (retries=0 인데도)"
+
 
 def test_flaky_section_hidden_when_no_retries(tmp_path: Path) -> None:
     """재시도가 없으면 섹션을 그리지 않는다."""
