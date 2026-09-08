@@ -6,6 +6,17 @@
 
 project_name: "Example Automation"
 
+# 테스트 대상 앱의 버전. 자동화 코드의 버전과 다릅니다.
+#  CI 에서 APP_VERSION 환경변수로 주는 것을 권장합니다.
+#  비워두면 리포트에 표시하지 않습니다. 형식은 자유입니다.
+app_version: ""
+
+# 리포트 표시 옵션
+report:
+  # 실행자 이름을 result.json / 리포트에 남길지.
+  # 개인정보가 걸리는 고객사면 false 로 두세요.
+  show_triggered_by: true
+
 browser: chromium          # chromium | firefox | webkit
 headless: true
 slow_mo: 0                 # ms. 디버깅 시 200~500 정도로 올려서 확인

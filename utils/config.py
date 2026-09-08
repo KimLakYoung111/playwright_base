@@ -67,6 +67,11 @@ class RunConfig:
     #: get_by_test_id() 가 찾을 속성. 사이트가 data-qa 등을 쓰면 바꿉니다.
     test_id_attribute: str = "data-testid"
 
+    # 테스트 대상 앱의 버전 (주입값). 비어 있으면 리포트에 표시하지 않습니다.
+    app_version: str = ""
+    # 실행자 이름을 리포트에 남길지 (개인정보 우려로 끌 수 있음)
+    show_triggered_by: bool = True
+
     retries: int = 0
 
     #: 오래된 artifacts/<실행시각>/ 폴더 보관 정책. 0 이면 정리하지 않습니다.
@@ -223,6 +228,7 @@ def load_config(
     viewport = merged.get("viewport") or {}
     evidence = merged.get("evidence") or {}
     artifacts_cfg = merged.get("artifacts") or {}
+    report_cfg = merged.get("report") or {}
 
     resolved_browser = (browser or _env_str("BROWSER", merged.get("browser", "chromium"))).lower()
     if resolved_browser not in SUPPORTED_BROWSERS:
@@ -255,6 +261,9 @@ def load_config(
         ),
         test_id_attribute=_env_str("TEST_ID_ATTRIBUTE",
                                    merged.get("test_id_attribute", "data-testid")),
+        app_version=_env_str("APP_VERSION", merged.get("app_version", "")),
+        show_triggered_by=_env_bool("SHOW_TRIGGERED_BY",
+                                    bool(report_cfg.get("show_triggered_by", True))),
         retries=_env_int("RETRIES", int(merged.get("retries", 0))),
         artifacts_keep_days=_env_int("ARTIFACTS_KEEP_DAYS",
                                      int(artifacts_cfg.get("keep_days", 14))),
