@@ -66,7 +66,9 @@ def test_run_meta_is_merged() -> None:
 
 def test_meta_keys_exist_even_without_run_meta(monkeypatch: pytest.MonkeyPatch) -> None:
     """메타를 못 모았어도 키는 있고 값이 null 이다. 소비자가 KeyError 를 안 만난다."""
-    monkeypatch.delenv("APP_VERSION", raising=False)
+    # delenv 는 .env 에 값이 있으면 load_dotenv(override=False) 가 재주입해
+    # 무력화된다. 빈 문자열로 지워야 .env 값을 확실히 덮는다.
+    monkeypatch.setenv("APP_VERSION", "")
     run = _collector().to_dict()["run"]
 
     assert run["git"] is None

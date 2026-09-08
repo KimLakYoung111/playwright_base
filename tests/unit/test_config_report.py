@@ -18,7 +18,10 @@ pytestmark = pytest.mark.base_unit
 
 def test_app_version_defaults_to_empty(monkeypatch: pytest.MonkeyPatch) -> None:
     """기본값은 빈 문자열이다. 고객사마다 버전 체계가 달라 강제하지 않는다."""
-    monkeypatch.delenv("APP_VERSION", raising=False)
+    # delenv 는 .env 파일에 값이 있으면 load_dotenv(override=False) 가 다시
+    # 채워 넣어 무력화된다. 빈 문자열로 설정해야 .env 값을 덮어써 기본값
+    # 경로를 확실히 탄다 (_env_str 은 빈 값을 "없음" 으로 취급한다).
+    monkeypatch.setenv("APP_VERSION", "")
     config = load_config(env="staging")
     assert config.app_version == ""
 
@@ -31,7 +34,8 @@ def test_app_version_from_environment(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_show_triggered_by_defaults_to_true(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("SHOW_TRIGGERED_BY", raising=False)
+    """delenv 는 .env 값에 덮어써지므로(override=False) 빈 문자열로 지운다."""
+    monkeypatch.setenv("SHOW_TRIGGERED_BY", "")
     config = load_config(env="staging")
     assert config.show_triggered_by is True
 
