@@ -10,6 +10,7 @@ Playwright + pytest 자동화 저장소입니다. **Claude 가 지킬 규칙**�
 | 기능별 레퍼런스 | [`README.md`](README.md) |
 | Claude 와 사람의 역할 분담 · MCP 사용법 | [가이드 9장](docs/AUTOMATION_GUIDE.md#9-claude-와-함께-쓰기) |
 | TC 명세 양식 (사람이 TC 를 쓸 때) | [`docs/TC_TEMPLATE.md`](docs/TC_TEMPLATE.md) |
+| 고객사에 전달할 실행 가이드 (양식) | [`docs/CLIENT_RUNBOOK.template.md`](docs/CLIENT_RUNBOOK.template.md) |
 
 ---
 

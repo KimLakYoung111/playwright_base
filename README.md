@@ -995,11 +995,25 @@ retries: 0
 7) data/*.json, data/*.yaml 교체
 8) 로그인이 있으면 fixtures/auth.py 의 perform_login() 구현
 9) README 상단의 프로젝트 소개만 고쳐 쓰기
+10) docs/CLIENT_RUNBOOK.template.md 를 docs/RUNBOOK.md 로 복사
+    → 빈칸({{ }}) 채우고 맨 위 안내 블록 삭제 → 고객사에 전달
 ```
 
 **손대지 않아도 되는 것** — `conftest.py`, `reporting/`, `utils/`, `pages/base_page.py`,
 `components/base_component.py`, `api/api_client.py`, `tests/unit/`.
 공통 기능이 개선되면 Base 에서 고쳐 각 프로젝트로 내려보냅니다.
+
+### 고객사에 전달할 실행 가이드
+
+받는 쪽이 읽을 문서는 이 README 가 아닙니다. 여기는 자동화를 **만드는 사람**용이고,
+고객사에는 **돌리고 결과를 보는 방법**만 있으면 됩니다.
+[`docs/CLIENT_RUNBOOK.template.md`](docs/CLIENT_RUNBOOK.template.md) 가 그 템플릿입니다.
+
+- **직접 `pytest` 를 돌리는 고객사** → 문서 전체를 전달
+- **리포트만 받아보는 관리자** → **4장만** 잘라서 전달 (`✂` 표시가 있습니다)
+
+내용은 Base 기능(설치·실행·리포트·Evidence·정리 주기)이라 고객사가 달라져도
+같습니다. 그래서 Base 에 두고, 바뀌는 것은 빈칸(`{{ }}`)뿐입니다.
 
 ---
 

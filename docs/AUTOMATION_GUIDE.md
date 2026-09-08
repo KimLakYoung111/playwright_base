@@ -720,4 +720,5 @@ pytest -n 2                                            # 병렬
 | result.json 스키마 (외부 연동) | [`reporting/result_schema.md`](../reporting/result_schema.md) |
 | 새 고객사 프로젝트 시작 | [README 18장](../README.md) |
 | TC 명세 양식 (사람이 TC 를 쓸 때) | [`TC_TEMPLATE.md`](TC_TEMPLATE.md) |
+| 고객사에 전달할 실행 가이드 (양식) | [`CLIENT_RUNBOOK.template.md`](CLIENT_RUNBOOK.template.md) |
 | Claude 가 지킬 규칙 (요약본) | [`CLAUDE.md`](../CLAUDE.md) |
