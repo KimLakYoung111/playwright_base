@@ -136,15 +136,15 @@ Python stdout 의 한글이 깨집니다. `PYTHONIOENCODING=utf-8` 로 **파일�
 아래 기대값은 **머지된 `main` 에서 실제로 돌려 확인한 값**입니다 (예측 아님).
 
 ```bash
-# 게이트 3종
-pytest                    # 30 passed, 12 deselected   (20.1s)
+# 게이트 4종
+pytest                    # 30 passed                           ← deselected 수는 기준 아님(계속 변함)
 pytest -m failure_demo    # 3 failed, 1 skipped        (11.1s)  ← 의도된 실패
-pytest -m base_unit       # 8 passed                   (0.5s)   ← Base 자체 회귀
+pytest -m base_unit       # 36 passed                           ← Base 자체 회귀
 pytest -n 2               # 30 passed                           ← 머지 전 확인
 
 # 30 이 아니면 예제 사이트(demo.playwright.dev/todomvc) 변경을 먼저 의심할 것
-# 8 이 아니면 prune_old_runs 를 건드린 것
-# deselected 12 = failure_demo 4 + base_unit 8
+# base_unit 수는 Base 자체 테스트가 늘면 같이 늘어난다. 갑자기 줄었으면 의심할 것
+# deselected = failure_demo + base_unit 몫이라 base_unit 테스트를 추가할 때마다 바뀐다. 고정값으로 박지 말 것
 
 git status -sb            # 변경 없음
 gh pr list                # 열린 PR 없음
