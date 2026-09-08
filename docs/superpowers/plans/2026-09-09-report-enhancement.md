@@ -553,13 +553,17 @@ git commit -F /tmp/cm.txt
 
 ```python
 def test_print_stylesheet_is_present(tmp_path: Path) -> None:
-    """인쇄용 규칙이 들어 있고, 전체 테스트 표를 숨긴다."""
+    """인쇄용 규칙이 들어 있고, 전체 테스트 표 섹션 자체를 숨긴다."""
     html = _render(tmp_path)
     assert "@media print" in html
     print_block = html.split("@media print", 1)[1].split("</style>", 1)[0]
-    # 전체 테스트 표와 필터 버튼은 인쇄에서 뺀다
-    assert "#tests" in print_block
-    assert ".controls" in print_block
+    # 선택자가 어딘가에 "있기만" 한 게 아니라, display:none 규칙 중 하나에
+    # 실제로 걸려 있는지 본다. 첫 규칙만 보면 규칙을 나누거나 앞쪽에 다른
+    # display:none 규칙이 생길 때 이 테스트가 엉뚱하게 실패(또는 통과)한다.
+    hide_rules = re.findall(r"([^{}]*)\{\s*display\s*:\s*none\b[^}]*\}", print_block)
+    assert hide_rules, "display:none 규칙을 찾지 못했다"
+    assert any("#slow-tests" in selectors for selectors in hide_rules)
+    assert any("#all-tests" in selectors for selectors in hide_rules)
     # 실패 카드가 페이지 중간에서 잘리지 않게 한다
     assert "break-inside" in print_block
 ```
@@ -589,8 +593,10 @@ pytest tests/unit/test_report_render.py -m base_unit -v
   body{background:#fff;color:#000}
   .wrap{max-width:none;padding:0}
   .panel,header.top{border:1px solid #ccc;box-shadow:none}
-  /* 인쇄에서 뺄 것: 전체 테스트 표, 필터 버튼, 느린 테스트, 라이트박스 */
-  #tests,.controls,details,#lb{display:none !important}
+  /* 인쇄에서 뺄 것: 전체 테스트 표 섹션(표+필터 버튼), 느린 테스트 섹션, 라이트박스.
+     섹션 안쪽 요소만 숨기면 감싸는 <section class="panel"> 테두리가 내용
+     없이 그대로 남아 빈 박스로 인쇄되므로, section 자체를 숨긴다 */
+  #slow-tests,#all-tests,#lb{display:none !important}
   /* 실패 카드가 페이지 중간에서 잘리지 않게 */
   .fail-card{break-inside:avoid;page-break-inside:avoid}
   /* 트레이스백이 길면 수십 장이 되므로 잘라서 보여줍니다 */
