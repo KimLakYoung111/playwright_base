@@ -2,11 +2,11 @@
 
 ``result.json`` 의 ``run`` 블록에 들어갑니다.
 
-``git_info()`` / ``triggered_by()`` / ``worker_count()`` 는 **어떤 경우에도 예외를
-올리지 않습니다.** 값을 못 구하면 ``None`` 을 돌려줍니다. 고객사가 이 Base 를
+이 모듈의 함수는 **어떤 경우에도 예외를 올리지 않습니다.** 값을 못 구하면
+``None`` (``command_line()`` 은 빈 문자열) 을 돌려줍니다. 고객사가 이 Base 를
 zip 으로 복사해 쓰면 ``.git`` 이 아예 없는데, 그것 때문에 테스트가 죽으면 안
-되기 때문입니다. (``command_line()`` 은 ``sys.argv`` 를 그대로 합치는 단순한
-함수라 이 보장에서 제외합니다.)
+되기 때문입니다. ``pytest_configure`` 안에서 가드 없이 호출되므로, 이 보장이
+깨지면 테스트가 한 건도 실행되지 못한 채 전체 실행이 죽습니다.
 """
 
 from __future__ import annotations
@@ -83,8 +83,12 @@ def command_line() -> str:
 
     ``sys.argv[0]`` 은 실행 파일의 전체 경로라 사용자 이름이 섞입니다.
     버리고 ``pytest`` 로 바꿉니다. 명령줄에 섞인 비밀번호·토큰은 가립니다.
+    못 구하면(sys.argv 이상 등) 예외를 올리지 않고 빈 문자열을 돌려줍니다.
     """
-    return mask_secrets(" ".join(["pytest", *sys.argv[1:]]))
+    try:
+        return mask_secrets(" ".join(["pytest", *sys.argv[1:]]))
+    except Exception:
+        return ""
 
 
 def worker_count(pytest_config: Any) -> int:

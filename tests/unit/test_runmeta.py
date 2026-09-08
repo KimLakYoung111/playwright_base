@@ -88,6 +88,15 @@ def test_command_line_masks_secrets(monkeypatch: pytest.MonkeyPatch) -> None:
     assert line.startswith("pytest -m smoke")
 
 
+def test_command_line_never_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    """sys.argv 에 문자열이 아닌 값이 섞여 join 이 깨져도 예외 없이 문자열을 준다."""
+    monkeypatch.setattr(sys, "argv", ["pytest", 123])
+
+    line = runmeta.command_line()
+
+    assert isinstance(line, str)
+
+
 def test_triggered_by_can_be_disabled() -> None:
     """개인정보가 걸리면 끌 수 있다."""
     assert runmeta.triggered_by(enabled=False) is None
