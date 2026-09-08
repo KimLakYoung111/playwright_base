@@ -48,6 +48,9 @@ TC ID   : TC001
 **여기서 정하지 못하면 코드로도 못 씁니다.** 기대결과가 "정상적으로 된다" 같은
 문장이면 아직 TC 가 아닙니다. 화면에서 **눈으로 확인 가능한 것** 하나로 좁히세요.
 
+> TC 를 여러 개 모아 문서로 남길 거라면 [`TC_TEMPLATE.md`](TC_TEMPLATE.md) 를 쓰세요.
+> 위 메모의 확장판이고, 항목이 코드의 어디로 가는지까지 대응표가 있습니다.
+
 ### 1단계 — codegen 으로 화면 훑기
 
 Locator 를 손으로 추측하지 마세요. 브라우저가 알려줍니다.
@@ -465,7 +468,8 @@ with test_step("비밀번호 필드 클릭"): ...
 with test_step("아이디 / 비밀번호 입력 후 로그인"): ...
 ```
 
-Step 은 **TC 명세서의 절차 한 줄**에 대응한다고 생각하면 적당합니다.
+Step 은 **TC 명세서의 절차 한 줄**에 대응한다고 생각하면 적당합니다
+([TC 명세 양식](TC_TEMPLATE.md)).
 
 ---
 
@@ -715,4 +719,5 @@ pytest -n 2                                            # 병렬
 | API 로 사전조건 만들기 | [README 15장](../README.md) + `tests/example/test_api_example.py` |
 | result.json 스키마 (외부 연동) | [`reporting/result_schema.md`](../reporting/result_schema.md) |
 | 새 고객사 프로젝트 시작 | [README 18장](../README.md) |
+| TC 명세 양식 (사람이 TC 를 쓸 때) | [`TC_TEMPLATE.md`](TC_TEMPLATE.md) |
 | Claude 가 지킬 규칙 (요약본) | [`CLAUDE.md`](../CLAUDE.md) |

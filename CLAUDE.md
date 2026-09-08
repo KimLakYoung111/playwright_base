@@ -9,6 +9,7 @@ Playwright + pytest 자동화 저장소입니다. **Claude 가 지킬 규칙**�
 | 작업 흐름 (새 화면을 받았다, 뭐부터 하나) | [`docs/AUTOMATION_GUIDE.md`](docs/AUTOMATION_GUIDE.md) |
 | 기능별 레퍼런스 | [`README.md`](README.md) |
 | Claude 와 사람의 역할 분담 · MCP 사용법 | [가이드 9장](docs/AUTOMATION_GUIDE.md#9-claude-와-함께-쓰기) |
+| TC 명세 양식 (사람이 TC 를 쓸 때) | [`docs/TC_TEMPLATE.md`](docs/TC_TEMPLATE.md) |
 
 ---
 
@@ -17,6 +18,8 @@ Playwright + pytest 자동화 저장소입니다. **Claude 가 지킬 규칙**�
 **TC(무엇을 검증할지)는 사람이 정합니다.** "기대결과: 정상 동작" 같은 문장이면 아직
 TC 가 아닙니다. 화면에서 눈으로 확인 가능한 것 하나로 좁혀달라고 요청하고 기다리세요.
 TC 없이 테스트를 지어내지 마세요.
+어떻게 써야 하냐고 물으면 **[`docs/TC_TEMPLATE.md`](docs/TC_TEMPLATE.md) 양식을 안내**하세요
+(양식을 대신 채워주지는 마세요 — 기대결과를 지어내는 것과 같습니다).
 
 Locator 는 추측하지 말고 **Playwright MCP 로 실제 화면에서 확보**합니다
 (`browser_navigate` → `browser_snapshot` → `browser_evaluate`).
