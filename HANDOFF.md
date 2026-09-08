@@ -14,7 +14,10 @@
 
 3회차 「Remaining Work」 7개를 전부 처리하고 `PR #4` 로 `main` 에 머지했습니다
 (rebase 머지 — `feat` 과 `docs` 의 설계 근거를 따로 남기기 위해 이번만 squash 를 쓰지
-않았습니다). **다음 세션의 첫 할 일은 아래 「Remaining Work」 1번(데모 프로젝트 이전)** 이고,
+않았습니다). 머지 후 게이트 3종과 GitHub Actions 를 실제로 돌려 전부 통과를 확인했습니다
+(값은 아래 Verification Commands).
+
+**다음 세션의 첫 할 일은 아래 「Remaining Work」 1번(데모 프로젝트 이전)** 이고,
 새로 시작할 만한 것은 3번(Template 경로 실증)입니다.
 
 ### What Was Done
@@ -83,6 +86,11 @@ Python stdout 의 한글이 깨집니다. `PYTHONIOENCODING=utf-8` 로 **파일�
 `git diff` 를 직접 읽고 `diff -q` 로 원본과 대조한 뒤에야 확인이 됐습니다.
 그리고 그 정확한 보고에도 `/code-review` 는 버그를 찾아냈습니다.
 
+**⑥ `gh pr merge --delete-branch` 는 로컬 원격추적 ref 를 안 지웁니다.**
+원격 브랜치는 지워지는데 `git branch -a` 에는 `remotes/origin/<브랜치>` 가 남아
+"브랜치 정리 실패" 로 보입니다. `git fetch --prune` 을 한 번 더 돌려야 사라집니다.
+3회차 목표가 "브랜치를 main 하나로 정리" 였으니 다음에도 여기서 헷갈리기 쉽습니다.
+
 ## 이번 회차 결정 (되돌리는 법 포함)
 
 **① `pytest` 가 `base_unit` 을 제외합니다.** `tests/unit/` 은 Base 프레임워크 자체
@@ -125,18 +133,22 @@ Python stdout 의 한글이 깨집니다. `PYTHONIOENCODING=utf-8` 로 **파일�
 
 ## Verification Commands
 
+아래 기대값은 **머지된 `main` 에서 실제로 돌려 확인한 값**입니다 (예측 아님).
+
 ```bash
-# 게이트 3종 (기대값)
-pytest                    # 30 passed, 12 deselected
-pytest -m failure_demo    # 3 failed, 1 skipped     ← 의도된 실패
-pytest -m base_unit       # 8 passed                ← Base 자체 회귀, 1초 미만
-pytest -n 2               # 30 passed
+# 게이트 3종
+pytest                    # 30 passed, 12 deselected   (20.1s)
+pytest -m failure_demo    # 3 failed, 1 skipped        (11.1s)  ← 의도된 실패
+pytest -m base_unit       # 8 passed                   (0.5s)   ← Base 자체 회귀
+pytest -n 2               # 30 passed                           ← 머지 전 확인
 
 # 30 이 아니면 예제 사이트(demo.playwright.dev/todomvc) 변경을 먼저 의심할 것
 # 8 이 아니면 prune_old_runs 를 건드린 것
+# deselected 12 = failure_demo 4 + base_unit 8
 
 git status -sb            # 변경 없음
-gh pr list                # PR #4 상태 확인
+gh pr list                # 열린 PR 없음
+gh run list --branch main --limit 1          # 최신 커밋 CI: success 확인함
 gh repo view --json isTemplate,visibility   # {"isTemplate":true,"visibility":"PUBLIC"}
 ```
 
@@ -148,14 +160,16 @@ gh repo view --json isTemplate,visibility   # {"isTemplate":true,"visibility":"P
 **없습니다.** `git status` clean, `main` 은 `origin/main` 과 동기화돼 있고 열린 PR 도
 없습니다. 브랜치는 `main` 하나입니다.
 
-이번 회차가 `main` 에 남긴 커밋입니다 (PR #4, rebase 머지라 그대로 올라갔습니다).
+이번 회차가 `main` 에 남긴 **실질 변경**은 둘입니다 (PR #4, rebase 머지라 그대로
+올라갔습니다). 그 뒤에 붙은 `docs: 핸드오프...` 커밋들은 이 문서를 갱신한 것입니다.
 
 ```
-docs: 핸드오프를 머지 후 상태로 갱신
-docs: 4회차 핸드오프 (3회차 잔여 작업 7개 처리)
 docs: Claude 협업 가이드(9장)와 CLAUDE.md 규칙 추가
 feat: 오래된 artifacts 실행 폴더 자동 정리
 ```
+
+> 핸드오프 갱신 커밋을 이 목록에 하나씩 적지 마세요. 적는 순간 그것을 적는 커밋이
+> 또 생겨서 끝나지 않습니다 (3회차에 커밋 해시로 같은 일을 겪었습니다).
 
 > 이 문서에 `main` 의 커밋 해시를 적지 않습니다. 해시를 적으면 그것을 고치는
 > 커밋이 다시 해시를 바꿔 영원히 어긋납니다(3회차에 실제로 겪음).
