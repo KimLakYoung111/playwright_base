@@ -316,9 +316,19 @@ def test_flaky_section_lists_retried_tests(tmp_path: Path) -> None:
         },
     )
     assert 'id="flaky"' in html
-    assert "흔들리는 결제" in html
     # 요약의 "재시도 1건" 이 목록으로 가는 링크가 된다
     assert 'href="#flaky"' in html
+
+    # 섹션 안쪽만 잘라서 본다. 아래 All Tests 표에는 TC001 이 정당하게 들어 있으므로
+    # 문서 전체에 대고 "TC001 이 없다" 를 확인하면 엉뚱한 이유로 실패한다.
+    start = html.find('id="flaky"')
+    end = html.find("</section>", start)
+    flaky_section = html[start:end]
+
+    assert "흔들리는 결제" in flaky_section
+    # retries=0 인 TC001 은 빠져야 한다. 이 줄이 없으면 "전체를 다 나열하는"
+    # 깨진 구현도 통과한다.
+    assert "TC001" not in flaky_section
 
 
 def test_flaky_section_hidden_when_no_retries(tmp_path: Path) -> None:
