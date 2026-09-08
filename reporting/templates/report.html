@@ -123,6 +123,26 @@ tr.detail td{background:var(--bg)}
 #lb img{max-width:100%;max-height:100%;border-radius:6px}
 footer{color:var(--muted);font-size:12px;text-align:center;margin-top:24px}
 .empty{color:var(--muted);font-size:13px;padding:8px 0}
+
+/* ---------- print / PDF ---------- */
+/* 인쇄본은 "요약 + 실패" 만 담습니다.
+   전체 테스트 표를 종이에 뽑으면 수십 장이 나오고 아무도 보지 않습니다. */
+@media print{
+  :root{
+    --bg:#ffffff; --panel:#ffffff; --ink:#000000; --muted:#555555; --line:#cccccc;
+    --pass-bg:#ffffff; --fail-bg:#ffffff; --skip-bg:#ffffff; --shadow:none;
+  }
+  body{background:#fff;color:#000}
+  .wrap{max-width:none;padding:0}
+  .panel,header.top{border:1px solid #ccc;box-shadow:none}
+  /* 인쇄에서 뺄 것: 전체 테스트 표, 필터 버튼, 느린 테스트, 라이트박스 */
+  #tests,.controls,details,#lb{display:none !important}
+  /* 실패 카드가 페이지 중간에서 잘리지 않게 */
+  .fail-card{break-inside:avoid;page-break-inside:avoid}
+  /* 트레이스백이 길면 수십 장이 되므로 잘라서 보여줍니다 */
+  pre.err{max-height:200px;overflow:hidden}
+  a{color:#000;text-decoration:none}
+}
 </style>
 </head>
 <body>
