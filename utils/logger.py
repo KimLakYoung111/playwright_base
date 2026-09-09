@@ -41,18 +41,51 @@ def _mask_url_credentials(match: re.Match) -> str:
     return f"{scheme}{user}:{MASK}@"
 
 
+#: 비밀을 가리키는 키 이름. key=value 형태와 ``--key value`` 형태가 함께 씁니다.
+#:
+#: **흔한 낱말을 넣지 마세요.** ``auth`` 하나를 넣었더니 ``GET /auth: 200 OK`` 가
+#: ``GET /auth: *** OK`` 가 되고 ``--auth-file conf.yaml`` 의 파일명까지 사라졌습니다.
+#: 가려서 얻는 것보다 로그를 읽을 수 없게 되는 손해가 큽니다.
+_SECRET_KEYS = (r"password|passwd|pwd|token|secret|api[_-]?key|"
+                r"authorization|auth[_-]?token")
+
+#: HTTP 인증 스킴. 스킴 이름은 비밀이 아니므로 남기고 뒤의 자격증명만 가립니다.
+_AUTH_SCHEMES = r"bearer|basic|digest"
+
 #: 값 자체를 몰라도 잡아내는 패턴. (정규식, 치환식) 쌍입니다.
-#: 순서에 의미가 없도록 짝을 지어 둡니다 — 인덱스로 꺼내 쓰면 패턴을 하나
-#: 끼워 넣을 때 엉뚱한 치환식이 걸립니다.
 #: 치환식은 문자열도 함수도 됩니다 (``re.sub`` 규칙 그대로).
+#:
+#: **스킴은 key=value 패턴 *안에서* 처리합니다.** 예전에는 값이 스킴 이름이면
+#: key=value 가 비켜서고 뒤의 스킴 패턴에 넘기게 했는데, 스킴 패턴은 "공백 +
+#: 8자 이상 토큰" 을 요구하므로 ``password=basic`` 이나
+#: ``Authorization: Bearer abc123`` 은 **아무도 안 잡아** 원문이 그대로 나갔습니다.
+#: 한 패턴이 스킴까지 함께 보면 이 구멍이 생길 수 없습니다.
 _SECRET_PATTERNS = [
-    # key=value / "key": "value"
-    (re.compile(r"(?i)\b(password|passwd|pwd|token|secret|api[_-]?key|authorization)"
-                r"(\"?\s*[:=]\s*\"?)([^\s\",;}]+)"),
-     r"\1\2" + MASK),
-    # Authorization 헤더의 Bearer 토큰
-    (re.compile(r"(?i)\b(bearer)\s+([A-Za-z0-9._\-]{8,})"),
+    # key=value / "key": "value" / {'key': 'value'}
+    #  값 앞에 인증 스킴이 붙어 있으면(``Authorization: Bearer <토큰>``) 스킴은
+    #  남기고 뒤만 가립니다. 어느 인증 방식이었는지는 비밀이 아니고 디버깅에 씁니다.
+    (re.compile(r"(?i)\b(" + _SECRET_KEYS + r")"
+                r"(['\"]?\s*[:=]\s*['\"]?)"
+                r"((?:" + _AUTH_SCHEMES + r")[ \t]+)?"
+                r"([^\s'\",;}]+)"),
+     r"\1\2\3" + MASK),
+    # 키 없이 헤더 값만 있는 경우 (``Bearer <토큰>``).
+    #  Base64 는 +, /, = 를 쓰므로 문자 집합에 넣습니다. 길이 하한은 "basic auth"
+    #  같은 평범한 문장을 건드리지 않기 위한 것입니다 — 키가 붙은 형태는 위
+    #  패턴이 길이와 무관하게 이미 잡습니다.
+    (re.compile(r"(?i)\b(" + _AUTH_SCHEMES + r")[ \t]+([A-Za-z0-9._\-+/=]{8,})"),
      r"\1 " + MASK),
+    # 공백으로 값을 넘기는 명령행 플래그 (--password hunter2).
+    #  ``--password=hunter2`` 는 위 key=value 가 잡지만 공백 형태는 못 잡습니다.
+    #  실행 명령은 result.json / report.html 로 고객사에 전달됩니다.
+    #  경계 셋이 전부 필요합니다:
+    #   (?<![\w-])  앞이 낱말이면 하이픈이 아니라 낱말의 일부다 (next-line-token)
+    #   [ \t]+      줄바꿈을 넘으면 다음 *줄*의 첫 토큰을 지운다
+    #   (?!-)       뒤따르는 것이 값이 아니라 다른 플래그면 가릴 이유가 없다
+    #  "가리는 쪽으로 실패" 는 **값**에 대한 원칙입니다. 플래그를 가려도 보안
+    #  이득은 0 이고 실행 명령만 읽을 수 없게 됩니다.
+    (re.compile(r"(?i)(?<![\w-])(--?(?:" + _SECRET_KEYS + r"))\b([ \t]+)(?!-)(\S+)"),
+     r"\1\2" + MASK),
     # URL 에 박은 자격증명. key=value 가 아니라서 위 패턴에 안 걸리는데,
     # --base-url 로 넘기면 실행 명령에 그대로 남아 고객사에 전달하는
     # result.json / report.html 까지 따라갑니다. 세 형태를 모두 잡습니다:
