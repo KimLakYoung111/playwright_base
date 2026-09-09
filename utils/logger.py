@@ -20,14 +20,46 @@ DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 LOGGER_NAME = "automation"
 
-#: 값 자체를 몰라도 잡아내는 패턴 (key=value / "key": "value" 형태)
-_SECRET_PATTERNS = [
-    re.compile(r"(?i)\b(password|passwd|pwd|token|secret|api[_-]?key|authorization)"
-               r"(\"?\s*[:=]\s*\"?)([^\s\",;}]+)"),
-    re.compile(r"(?i)\b(bearer)\s+([A-Za-z0-9._\-]{8,})"),
-]
-
 MASK = "***"
+
+
+def _mask_url_credentials(match: re.Match) -> str:
+    """URL userinfo 를 가립니다. 콜론 유무로 판단이 갈립니다.
+
+    ``https://admin:pw@host`` 처럼 콜론이 있으면 앞은 정의상 사용자명이므로
+    남기고 뒤만 가립니다. 사용자명은 비밀이 아니고, 남겨야 어느 계정으로
+    돌렸는지 알 수 있습니다.
+
+    콜론이 없으면 그 한 덩어리가 사용자명인지 토큰인지 **구분할 수 없습니다**.
+    ``https://ghp_xxx@github.com/...`` 이 GitHub PAT 의 표준 형태입니다.
+    구분이 안 되면 가리는 쪽으로 실패해야 합니다 — 안 가려서 토큰이 고객사
+    리포트로 나가는 손해가, 사용자명을 못 보는 손해보다 큽니다.
+    """
+    scheme, user, password = match.group(1), match.group(2), match.group(3)
+    if password is None:
+        return f"{scheme}{MASK}@"
+    return f"{scheme}{user}:{MASK}@"
+
+
+#: 값 자체를 몰라도 잡아내는 패턴. (정규식, 치환식) 쌍입니다.
+#: 순서에 의미가 없도록 짝을 지어 둡니다 — 인덱스로 꺼내 쓰면 패턴을 하나
+#: 끼워 넣을 때 엉뚱한 치환식이 걸립니다.
+#: 치환식은 문자열도 함수도 됩니다 (``re.sub`` 규칙 그대로).
+_SECRET_PATTERNS = [
+    # key=value / "key": "value"
+    (re.compile(r"(?i)\b(password|passwd|pwd|token|secret|api[_-]?key|authorization)"
+                r"(\"?\s*[:=]\s*\"?)([^\s\",;}]+)"),
+     r"\1\2" + MASK),
+    # Authorization 헤더의 Bearer 토큰
+    (re.compile(r"(?i)\b(bearer)\s+([A-Za-z0-9._\-]{8,})"),
+     r"\1 " + MASK),
+    # URL 에 박은 자격증명. key=value 가 아니라서 위 패턴에 안 걸리는데,
+    # --base-url 로 넘기면 실행 명령에 그대로 남아 고객사에 전달하는
+    # result.json / report.html 까지 따라갑니다. 세 형태를 모두 잡습니다:
+    #   https://user:pw@host   https://token@host   https://:pw@host
+    (re.compile(r"(?i)\b([a-z][a-z0-9+.\-]*://)([^/\s:@]*)(?::([^/\s@]*))?@"),
+     _mask_url_credentials),
+]
 
 #: exc_text 를 만들 때 쓰는 포맷터 (핸들러와 무관하게 동작해야 해서 따로 둡니다)
 _EXC_FORMATTER = logging.Formatter()
@@ -57,8 +89,8 @@ class SensitiveDataFilter(logging.Filter):
         for literal in self._literals:
             if literal in text:
                 text = text.replace(literal, MASK)
-        text = _SECRET_PATTERNS[0].sub(lambda m: f"{m.group(1)}{m.group(2)}{MASK}", text)
-        text = _SECRET_PATTERNS[1].sub(lambda m: f"{m.group(1)} {MASK}", text)
+        for pattern, replacement in _SECRET_PATTERNS:
+            text = pattern.sub(replacement, text)
         return text
 
     def filter(self, record: logging.LogRecord) -> bool:

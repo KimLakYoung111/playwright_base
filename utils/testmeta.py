@@ -29,7 +29,7 @@ HIDDEN_MARKERS = frozenset({
 
 #: Category 로 쓰지 않는 marker (실행 유형 / 특성 / 플러그인 제공)
 NON_CATEGORY_MARKERS = HIDDEN_MARKERS | frozenset({
-    "smoke", "regression", "e2e", "failure_demo", "slow", "flaky",
+    "smoke", "regression", "e2e", "failure_demo", "base_unit", "slow", "flaky",
     "skip", "skipif", "xfail",
     "only_browser", "skip_browser",      # pytest-playwright 제공
 })

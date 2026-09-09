@@ -1,8 +1,126 @@
-# HANDOFF: 리포트 보강 (Marker·Flaky·느린 테스트·인쇄 + 실행 메타)
+# HANDOFF: 코드 리뷰 지적 반영 (실행 메타·마스킹·설정 파싱 + 회귀 테스트 배증)
 
 > 최신 세션이 맨 위입니다. 아래로 갈수록 과거 기록입니다.
 
 ---
+
+## Goal
+
+5회차에 넣은 **실행 메타(schema 1.1)와 artifacts 자동 정리**를 고객사 프로젝트
+(`qmeet`)로 내려보내는 과정에서 `/code-review` 가 결함 15건을 올렸습니다.
+전부 이 저장소가 원인이므로 **여기서 고치고 각 프로젝트로 다시 내려보냈습니다.**
+
+## Current Status: Completed — 커밋 전 (워킹트리에만 있음)
+
+게이트 4종 통과. `qmeet` 저장소의 `utils/`·`reporting/`·`tests/unit/`·`conftest.py` 는
+이 저장소와 **바이트 단위로 동일**합니다 (`diff -rq` EXIT=0).
+
+### What Was Done
+
+| 파일 | 수정 |
+|---|---|
+| `utils/testmeta.py` | `NON_CATEGORY_MARKERS` 에 `base_unit` 추가. 안 넣어서 리포트 Category 에 `Base_Unit` 이 뜨고 있었음 (`result.json` 으로 실측 확인) |
+| `utils/runmeta.py` | `subprocess.run` 에 `encoding="utf-8", errors="replace"`. `text=True` 만 두면 Windows 는 cp949 로 디코드해 한글 브랜치명이 깨지거나 통째로 사라짐 |
+| `utils/runmeta.py` | `status --porcelain=v2 --branch` **1회**로 브랜치·커밋·dirty 수집 (기존 3회 × 최대 `GIT_TIMEOUT`). git 2.13.1 미만은 기존 3-call 로 자동 폴백 |
+| `utils/runmeta.py` | `dirty` 를 못 구하면 `None`. `False` 로 적으면 "커밋과 정확히 일치" 를 거짓 단정. detached HEAD 는 `branch: None` |
+| `utils/logger.py` | URL userinfo 마스킹(`_mask_url_credentials`). `https://user:pw@`·`https://token@`·`https://:pw@` 세 형태. 콜론이 없으면 사용자명인지 토큰인지 구분 불가라 **가리는 쪽으로 실패** |
+| `utils/logger.py` | `_SECRET_PATTERNS` 를 `(정규식, 치환식)` 쌍으로. 인덱스 참조를 없애 패턴 추가가 안전해짐 |
+| `utils/config.py` | `_yaml_int`/`_yaml_bool`/`_yaml_str` + `_yaml_missing`. `keep_days:` 처럼 값을 비우면 yaml 이 None 을 주는데 `int(None)` 은 TypeError 라 conftest 의 `except ValueError` 를 빠져나가 INTERNALERROR 가 됨 |
+| `utils/config.py` | 같은 버그가 있던 **기존 설정 전부에 적용** — `slow_mo`·`retries`·`timeouts.*`·`viewport.*`·`headless`. 중첩 키는 `label="timeouts.default"` 로 오류 메시지에 경로를 남김 |
+| `utils/config.py` | `show_triggered_by: "false"`(따옴표) 가 `bool("false")=True` 로 뒤집히던 문제. `TRUE_STRINGS` 를 환경변수와 공유 |
+| `utils/config.py` | `app_version` 을 `str()` 로. `app_version: 2.10` 은 yaml 이 float 2.1 로 읽어 `result_schema.md` 의 "문자열" 약속이 깨짐 |
+| `reporting/templates/report.html` | `dirty is none` 이면 "(변경 여부 확인 못 함)" 별도 표기. None 은 falsy 라 한 갈래로는 깨끗한 것과 구별 안 됨 |
+| `reporting/templates/report.html` | 느린 테스트 Top 5 를 `[:5]` 슬라이스로. 전체 순회 후 `loop.index <= 5` 였음 |
+| `reporting/result_schema.md` | `dirty`·`branch` 가 null 일 수 있음 명시 |
+| `tests/unit/test_config_report.py` | `_read_yaml` 을 갈아끼워 **저장소 설정과 분리**. 이전에는 고객사가 `show_triggered_by: false` 로 두면 커밋 게이트가 엉뚱하게 깨졌음 |
+| `tests/unit/test_runmeta.py` | `sensitive_filter._literals` 저장/복원 fixture. 전역 싱글턴에 리터럴을 등록만 하고 안 지워 이후 테스트의 로그·트레이스백이 조용히 `***` 로 바뀌었음 |
+| `tests/unit/*.py` | 6개 파일(`test_logger_masking.py` 신규) 전부 `tc_id` + `category` marker. 이전엔 8/37 개만 있어 리포트에 함수명이 그대로 나왔음 |
+
+**회귀 테스트 37 → 81개.** 새로 지키는 것: UTF-8 디코드, git 호출 1회, `dirty=None`,
+detached HEAD, untracked=dirty, v2 폴백, URL 자격증명 3형태, yaml 빈 값(설정 7종
+parametrize), 따옴표 친 불리언, 숫자형 버전.
+
+### What Was NOT Done
+
+리뷰 지적 중 **설계 판단이 필요한 3건은 고치지 않았습니다.**
+
+1. **`keep_days: 14` 기본 ON** — 새 고객사 프로젝트가 README 를 읽기 전에 Evidence
+   삭제를 켠 채 시작합니다. 유지 이유: 문서 3곳에 설명돼 있고 `keep_min_runs`
+   안전장치가 있음. 끄려면(`0`) 정책 결정이 필요합니다.
+2. **`prune_old_runs` 를 `pytest_configure` 에서 실행** — 리뷰는 "시작 지연" 을
+   지적했으나, **디스크가 찼을 때 이번 실행의 Evidence 쓸 공간을 먼저 확보한다**는
+   반대 논리가 더 강해 유지했습니다. `sessionfinish` 로 옮기면 그 효과가 사라집니다.
+3. **`base_unit` 실행이 `keep_min_runs` 슬롯 잠식** — 브라우저도 안 쓰는 1초짜리
+   실행도 `artifacts/<run_id>/` 를 만듭니다. 게이트 3종을 두 번 돌리면 보호 슬롯
+   5개가 껍데기로 찹니다. 고치려면 "base_unit 실행은 artifacts 를 만들지 않는다"
+   같은 설계 변경이 필요합니다.
+
+## What Worked
+
+- **고객사 프로젝트에서 고치지 않고 Base 로 올려 고친 것.** `qmeet` 에서 직접
+  고쳤으면 다음 동기화에 되돌아갔습니다. 고친 뒤 다시 내려보내 두 저장소를 맞췄습니다.
+- **`result.json` 을 직접 열어 검증.** `categories` 가 `['Base_Unit']` →
+  `['Artifacts','Config','Report','RunMeta']` 로 바뀐 것을 JSON 에서 확인했습니다.
+- **`git status --porcelain=v2 --branch` 한 방.** `# branch.oid`/`# branch.head` 를
+  읽고, `#` 로 시작하지 않는 줄이 하나라도 있으면 dirty 입니다.
+
+## What Didn't Work / Gotchas
+
+- **`python -m reporting.ci_summary` 가 Windows 콘솔에서 죽습니다.**
+  `UnicodeEncodeError: 'cp949' codec can't encode character '\u274c'` — 실패한
+  실행의 `❌` 아이콘 때문입니다. `to_markdown()` 자체는 정상이고 **콘솔 출력만**
+  깨집니다. 이번 변경 이전부터 있던 문제입니다. HANDOFF 가 검증 절차로 안내하는
+  명령이라 고칠 값어치가 있습니다.
+- **`pytest -n 2` 가 한 번 실패했습니다.** `test_home_page_opens` 가
+  `Page.goto: Timeout 45000ms`. 재실행하니 84초 → 10초에 30 passed.
+  외부 예제 사이트(`demo.playwright.dev/todomvc`) 접속 지연이고 코드 변경과 무관합니다.
+- **`Path.read_text(newline=...)` 는 Python 3.13 부터입니다.** 3.12 에서는 TypeError.
+  CRLF 를 보존하려면 `io.open(p, newline="")` 을 쓰세요.
+
+## Remaining Work
+
+1. **`reporting/ci_summary.py` 의 cp949 크래시** — `main()` 의 `print` 앞에
+   `sys.stdout.reconfigure(encoding="utf-8")` 를 넣거나 아이콘을 ASCII 로.
+2. **위 「What Was NOT Done」 3건 결정** — 특히 3번은 실측으로 확인된 현상입니다.
+3. 5회차의 잔여 항목(인쇄 미리보기 육안 확인, Template 경로 실증)은 아래 5회차
+   기록에 그대로 남아 있습니다.
+
+## Verification Commands
+
+```bash
+# 게이트 4종 — 이 세션에서 실제로 나온 수치
+pytest                    # 30 passed, 57 deselected   (16s)
+pytest -m failure_demo    # 3 failed, 1 skipped        (11s)  <- 의도된 실패
+pytest -m base_unit       # 81 passed, 34 deselected   (1.4s) <- 브라우저 없음
+pytest -n 2               # 30 passed                  (10s)
+
+# 30 이 아니면 예제 사이트(demo.playwright.dev/todomvc) 변경을 먼저 의심할 것
+# base_unit 수는 Base 자체 테스트가 늘면 같이 는다. 갑자기 줄었으면 의심할 것
+
+# 고객사 프로젝트와 공통 파일이 일치하는지 (EXIT=0 이어야 함)
+diff -rq --exclude=__pycache__ utils ../qmeet/utils
+diff -rq --exclude=__pycache__ reporting ../qmeet/reporting
+diff -rq --exclude=__pycache__ tests/unit ../qmeet/tests/unit
+diff -q conftest.py ../qmeet/conftest.py
+```
+
+## Uncommitted Changes
+
+```
+ M HANDOFF.md                        M utils/config.py
+ M reporting/result_schema.md        M utils/logger.py
+ M reporting/templates/report.html   M utils/runmeta.py
+ M tests/unit/test_config_report.py  M utils/testmeta.py
+ M tests/unit/test_report_render.py
+ M tests/unit/test_result_meta.py
+ M tests/unit/test_runmeta.py
+```
+
+11 files changed, 648 insertions(+), 87 deletions(-). 전부 이번 세션 작업물입니다.
+
+---
+
+## 5회차 — 리포트 보강 (Marker·Flaky·느린 테스트·인쇄 + 실행 메타)
 
 ## Goal
 
@@ -179,7 +297,7 @@ id 를 주고(`#slow-tests`, `#all-tests`) 그것을 숨겨야 합니다. `detai
 # 게이트 4종
 pytest                    # 30 passed            <- deselected 수는 기준 아님(계속 변함)
 pytest -m failure_demo    # 3 failed, 1 skipped  <- 의도된 실패
-pytest -m base_unit       # 37 passed            <- Base 자체 회귀
+pytest -m base_unit       # 53 passed            <- Base 자체 회귀
 pytest -n 2               # 30 passed
 
 # 30 이 아니면 예제 사이트(demo.playwright.dev/todomvc) 변경을 먼저 의심할 것

@@ -158,7 +158,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;margin-top:24px}
       <div><span class="k">App Version</span><span class="v">{{ run.app_version }}</span></div>
       {% endif %}
       {% if run.git %}
-      <div><span class="k">Automation</span><span class="v">{{ run.git.branch or "-" }} @ {{ run.git.commit }}{% if run.git.dirty %} <span style="color:var(--skip)">(변경 있음)</span>{% endif %}</span></div>
+      <div><span class="k">Automation</span><span class="v">{{ run.git.branch or "-" }} @ {{ run.git.commit }}{% if run.git.dirty is none %} <span style="color:var(--muted)">(변경 여부 확인 못 함)</span>{% elif run.git.dirty %} <span style="color:var(--skip)">(변경 있음)</span>{% endif %}</span></div>
       {% endif %}
       <div><span class="k">Browser</span><span class="v">{{ run.browser|capitalize }}{% if run.headless %} (headless){% endif %}</span></div>
       <div><span class="k">Target URL</span><span class="v">{% if run.base_url %}<a href="{{ run.base_url }}" target="_blank" rel="noopener">{{ run.base_url }}</a>{% else %}-{% endif %}</span></div>
@@ -314,15 +314,13 @@ footer{color:var(--muted);font-size:12px;text-align:center;margin-top:24px}
       <table style="margin-top:14px">
         <thead><tr><th>Test ID</th><th>Test Name</th><th>Category</th><th class="num">수행시간</th></tr></thead>
         <tbody>
-        {% for test in tests|sort(attribute="duration", reverse=true) %}
-          {% if loop.index <= 5 %}
+        {% for test in (tests|sort(attribute="duration", reverse=true))[:5] %}
           <tr>
             <td><strong>{{ test.test_id }}</strong></td>
             <td>{{ test.name }}</td>
             <td>{{ test.category }}</td>
             <td class="num">{{ test.duration_text }}</td>
           </tr>
-          {% endif %}
         {% endfor %}
         </tbody>
       </table>

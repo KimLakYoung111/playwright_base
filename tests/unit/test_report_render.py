@@ -20,7 +20,7 @@ import pytest
 from reporting import report_generator
 
 #: 파일 전체가 Base 자체 회귀 테스트입니다 (pytest.ini 의 addopts 에서 기본 제외).
-pytestmark = pytest.mark.base_unit
+pytestmark = [pytest.mark.base_unit, pytest.mark.category("Report")]
 
 
 class _FakeCollector:
@@ -100,6 +100,7 @@ def _render(tmp_path: Path, **overrides: Any) -> str:
     return target.read_text(encoding="utf-8")
 
 
+@pytest.mark.tc_id("UNIT401")
 def test_marker_section_is_rendered(tmp_path: Path) -> None:
     """markers[] 가 있으면 Marker 표가 그려진다."""
     html = _render(tmp_path, markers=[
@@ -112,12 +113,14 @@ def test_marker_section_is_rendered(tmp_path: Path) -> None:
     assert "regression" in html
 
 
+@pytest.mark.tc_id("UNIT402")
 def test_marker_section_hidden_when_empty(tmp_path: Path) -> None:
     """markers[] 가 비면 섹션 자체를 그리지 않는다."""
     html = _render(tmp_path, markers=[])
     assert "Marker 별 결과" not in html
 
 
+@pytest.mark.tc_id("UNIT403")
 def test_flaky_section_lists_retried_tests(tmp_path: Path) -> None:
     """retries > 0 인 테스트만 Flaky 목록에 나온다."""
     html = _render(
@@ -152,12 +155,14 @@ def test_flaky_section_lists_retried_tests(tmp_path: Path) -> None:
     assert "TC001" not in flaky_section, "TC001이 flaky 섹션에 포함됨 (retries=0 인데도)"
 
 
+@pytest.mark.tc_id("UNIT404")
 def test_flaky_section_hidden_when_no_retries(tmp_path: Path) -> None:
     """재시도가 없으면 섹션을 그리지 않는다."""
     html = _render(tmp_path)
     assert 'id="flaky"' not in html
 
 
+@pytest.mark.tc_id("UNIT405")
 def test_slow_tests_are_sorted_and_capped(tmp_path: Path) -> None:
     """느린 순으로 5건까지만 보여준다."""
     rows = [_test_row(test_id=f"TC{i:03d}", name=f"테스트 {i}", duration=float(i))
@@ -174,12 +179,14 @@ def test_slow_tests_are_sorted_and_capped(tmp_path: Path) -> None:
     assert "테스트 2" not in slow_block
 
 
+@pytest.mark.tc_id("UNIT406")
 def test_slow_tests_hidden_when_few(tmp_path: Path) -> None:
     """5건 이하면 순위가 의미 없으므로 섹션을 숨긴다."""
     html = _render(tmp_path)
     assert "느린 테스트 Top 5" not in html
 
 
+@pytest.mark.tc_id("UNIT407")
 def test_print_stylesheet_is_present(tmp_path: Path) -> None:
     """인쇄용 규칙이 들어 있고, 전체 테스트 표 섹션 자체를 숨긴다."""
     html = _render(tmp_path)
@@ -212,6 +219,7 @@ def _run_with_meta(**overrides: Any) -> dict[str, Any]:
     return run
 
 
+@pytest.mark.tc_id("UNIT408")
 def test_header_shows_run_meta(tmp_path: Path) -> None:
     """앱 버전·커밋·실행자·명령줄·병렬 수가 헤더에 나온다."""
     html = _render(tmp_path, run=_run_with_meta())
@@ -223,6 +231,7 @@ def test_header_shows_run_meta(tmp_path: Path) -> None:
     assert "4 workers" in html
 
 
+@pytest.mark.tc_id("UNIT409")
 def test_header_hides_missing_meta(tmp_path: Path) -> None:
     """값이 null 이면 그 줄 자체를 그리지 않는다 (빈 칸을 남기지 않음)."""
     html = _render(tmp_path, run=_run_with_meta(
@@ -236,8 +245,31 @@ def test_header_hides_missing_meta(tmp_path: Path) -> None:
     assert '<span class="k">Automation</span>' not in html
 
 
+@pytest.mark.tc_id("UNIT410")
 def test_header_marks_dirty_worktree(tmp_path: Path) -> None:
     """커밋 안 된 변경이 있으면 표시한다. 재현이 안 될 수 있다는 신호다."""
     html = _render(tmp_path, run=_run_with_meta(
         git={"branch": "main", "commit": "5d1ed8b", "dirty": True}))
     assert "변경 있음" in html
+
+
+@pytest.mark.tc_id("UNIT411")
+def test_header_says_nothing_for_clean_worktree(tmp_path: Path) -> None:
+    """깨끗하면 아무 표시도 하지 않는다."""
+    html = _render(tmp_path, run=_run_with_meta(
+        git={"branch": "main", "commit": "5d1ed8b", "dirty": False}))
+    assert "변경 있음" not in html
+    assert "변경 여부 확인 못 함" not in html
+
+
+@pytest.mark.tc_id("UNIT412")
+def test_header_distinguishes_unknown_dirty_state(tmp_path: Path) -> None:
+    """dirty 가 None 이면 "모른다" 고 적는다.
+
+    None 은 falsy 라 ``{% if run.git.dirty %}`` 하나로는 깨끗한 것과 구별되지
+    않는다. 그러면 리포트가 "이 커밋과 정확히 일치" 를 거짓으로 단정한다.
+    """
+    html = _render(tmp_path, run=_run_with_meta(
+        git={"branch": "main", "commit": "5d1ed8b", "dirty": None}))
+    assert "변경 여부 확인 못 함" in html
+    assert "변경 있음" not in html

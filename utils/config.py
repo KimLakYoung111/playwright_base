@@ -159,11 +159,75 @@ def _env_int(key: str, default: int) -> int:
         ) from None
 
 
+#: 참으로 읽는 문자열. 환경변수와 yaml 이 같은 규칙을 쓰도록 한 군데 둡니다.
+TRUE_STRINGS = frozenset({"1", "true", "yes", "y", "on"})
+
+
 def _env_bool(key: str, default: bool) -> bool:
     value = os.getenv(key)
     if value is None or not value.strip():
         return default
-    return value.strip().lower() in ("1", "true", "yes", "y", "on")
+    return value.strip().lower() in TRUE_STRINGS
+
+
+def _yaml_missing(value: Any) -> bool:
+    """yaml 에서 "값을 안 준 것" 으로 볼지.
+
+    ``keep_days:`` 처럼 키만 쓰고 값을 비워두면 yaml 은 None 을 줍니다.
+    ``cfg.get(key, default)`` 는 키가 있으니 그 None 을 그대로 돌려주고,
+    받는 쪽에서 ``int(None)`` 이 TypeError 로 터집니다. conftest 는 ValueError
+    만 UsageError 로 바꾸므로 사용자는 친절한 메시지 대신 INTERNALERROR
+    트레이스백을 봅니다. 그래서 "빈 값 = 안 준 것" 으로 통일합니다.
+    """
+    return value is None or (isinstance(value, str) and not value.strip())
+
+
+def _yaml_int(cfg: dict, key: str, default: int, label: str | None = None) -> int:
+    """yaml 값을 정수로. ``label`` 은 오류 메시지에 쓸 이름입니다.
+
+    중첩 키는 ``label="timeouts.default"`` 처럼 넘기세요. 그냥 두면
+    "default 는 숫자여야 합니다" 가 되어 어느 설정인지 알 수 없습니다.
+    """
+    value = (cfg or {}).get(key)
+    if _yaml_missing(value):
+        return default
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        raise ValueError(
+            f"{label or key} 는 숫자여야 합니다. 지금 값: {value!r}"
+        ) from None
+
+
+def _yaml_bool(cfg: dict, key: str, default: bool) -> bool:
+    """yaml 값을 불리언으로.
+
+    ``show_triggered_by: "false"`` 처럼 **따옴표를 치면 문자열로 옵니다.**
+    ``bool("false")`` 는 True 라, 그대로 두면 개인정보 옵트아웃이 조용히
+    무시된 채 실행자 이름이 고객사 리포트에 그대로 실립니다.
+    환경변수와 같은 규칙(:data:`TRUE_STRINGS`)으로 읽습니다.
+    """
+    value = (cfg or {}).get(key)
+    if _yaml_missing(value):
+        return default
+    if isinstance(value, str):
+        return value.strip().lower() in TRUE_STRINGS
+    return bool(value)
+
+
+def _yaml_str(cfg: dict, key: str, default: str) -> str:
+    """yaml 값을 문자열로. 스키마가 약속한 타입을 지킵니다.
+
+    ``app_version: 2.10`` 은 yaml 이 **float 2.1 로 읽습니다.** 여기서 str 로
+    바꿔도 이미 잃은 0 은 못 되살립니다(``"2.1"`` 이 됩니다). 이 함수가 막는
+    것은 result.json 에 숫자가 들어가 ``result_schema.md`` 의 "문자열" 약속이
+    깨지는 것까지입니다.
+    → 자릿수를 지키려면 **yaml 에서 따옴표를 치세요**: ``app_version: "2.10"``.
+    """
+    value = (cfg or {}).get(key)
+    if _yaml_missing(value):
+        return default
+    return str(value)
 
 
 def _build_accounts(raw_accounts: dict) -> dict[str, Account]:
@@ -237,7 +301,7 @@ def load_config(
             f"사용 가능: {', '.join(SUPPORTED_BROWSERS)}"
         )
 
-    resolved_headless = _env_bool("HEADLESS", bool(merged.get("headless", True)))
+    resolved_headless = _env_bool("HEADLESS", _yaml_bool(merged, "headless", True))
     if headed:                       # --headed 는 어떤 설정보다 우선
         resolved_headless = False
 
@@ -248,27 +312,32 @@ def load_config(
         api_base_url=_env_str("API_BASE_URL", merged.get("api_base_url", "")),
         browser=resolved_browser,
         headless=resolved_headless,
-        slow_mo=_env_int("SLOW_MO", int(merged.get("slow_mo", 0))),
-        default_timeout=_env_int("DEFAULT_TIMEOUT", int(timeouts.get("default", 30000))),
-        navigation_timeout=_env_int("NAVIGATION_TIMEOUT", int(timeouts.get("navigation", 45000))),
-        expect_timeout=_env_int("EXPECT_TIMEOUT", int(timeouts.get("expect", 10000))),
-        viewport_width=_env_int("VIEWPORT_WIDTH", int(viewport.get("width", 1920))),
-        viewport_height=_env_int("VIEWPORT_HEIGHT", int(viewport.get("height", 1080))),
+        slow_mo=_env_int("SLOW_MO", _yaml_int(merged, "slow_mo", 0)),
+        default_timeout=_env_int(
+            "DEFAULT_TIMEOUT", _yaml_int(timeouts, "default", 30000, "timeouts.default")),
+        navigation_timeout=_env_int(
+            "NAVIGATION_TIMEOUT", _yaml_int(timeouts, "navigation", 45000, "timeouts.navigation")),
+        expect_timeout=_env_int(
+            "EXPECT_TIMEOUT", _yaml_int(timeouts, "expect", 10000, "timeouts.expect")),
+        viewport_width=_env_int(
+            "VIEWPORT_WIDTH", _yaml_int(viewport, "width", 1920, "viewport.width")),
+        viewport_height=_env_int(
+            "VIEWPORT_HEIGHT", _yaml_int(viewport, "height", 1080, "viewport.height")),
         locale=_env_str("LOCALE", merged.get("locale", "ko-KR")),
         timezone=_env_str("TIMEZONE", merged.get("timezone", "Asia/Seoul")),
         ignore_https_errors=_env_bool(
-            "IGNORE_HTTPS_ERRORS", bool(merged.get("ignore_https_errors", False))
+            "IGNORE_HTTPS_ERRORS", _yaml_bool(merged, "ignore_https_errors", False)
         ),
         test_id_attribute=_env_str("TEST_ID_ATTRIBUTE",
                                    merged.get("test_id_attribute", "data-testid")),
-        app_version=_env_str("APP_VERSION", merged.get("app_version", "")),
+        app_version=_env_str("APP_VERSION", _yaml_str(merged, "app_version", "")),
         show_triggered_by=_env_bool("SHOW_TRIGGERED_BY",
-                                    bool(report_cfg.get("show_triggered_by", True))),
-        retries=_env_int("RETRIES", int(merged.get("retries", 0))),
+                                    _yaml_bool(report_cfg, "show_triggered_by", True)),
+        retries=_env_int("RETRIES", _yaml_int(merged, "retries", 0)),
         artifacts_keep_days=_env_int("ARTIFACTS_KEEP_DAYS",
-                                     int(artifacts_cfg.get("keep_days", 14))),
+                                     _yaml_int(artifacts_cfg, "keep_days", 14)),
         artifacts_keep_min_runs=_env_int("ARTIFACTS_KEEP_MIN_RUNS",
-                                         int(artifacts_cfg.get("keep_min_runs", 5))),
+                                         _yaml_int(artifacts_cfg, "keep_min_runs", 5)),
         screenshot_mode=_evidence_mode("SCREENSHOT_MODE", evidence.get("screenshot", "on-failure")),
         trace_mode=_evidence_mode("TRACE_MODE", evidence.get("trace", "on-failure")),
         page_html_mode=_evidence_mode("PAGE_HTML_MODE", evidence.get("page_html", "on-failure")),

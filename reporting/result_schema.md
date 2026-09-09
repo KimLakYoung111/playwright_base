@@ -30,9 +30,12 @@ Slack/Email 알림, Trend Report, CI 연동은 모두 HTML 이 아니라 이 JSO
     // --- schema 1.1 에서 추가 ---
     "app_version": "v2.14.3 (build 8821)",  // 테스트 대상 앱 버전(주입). 없으면 null
     "git": {                                // 자동 수집. .git 이 없으면 null
-      "branch": "main",
+      "branch": "main",                     // detached HEAD 면 null
       "commit": "5d1ed8b",
-      "dirty": false                        // 커밋 안 된 변경이 있으면 true
+      "dirty": false                        // 커밋 안 된 변경이 있으면 true.
+                                            //  git 을 못 물어봤으면 null —
+                                            //  false 로 적으면 "커밋과 일치" 를
+                                            //  거짓으로 단정하게 됩니다.
     },
     "triggered_by": "klyhja",               // 실행자. show_triggered_by=false 면 null
     "command": "pytest -m smoke -n 4",      // 실행 명령 (비밀번호·토큰은 가려짐)

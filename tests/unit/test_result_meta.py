@@ -17,7 +17,7 @@ from reporting.result_collector import ResultCollector
 from utils.config import load_config
 
 #: 파일 전체가 Base 자체 회귀 테스트입니다 (pytest.ini 의 addopts 에서 기본 제외).
-pytestmark = pytest.mark.base_unit
+pytestmark = [pytest.mark.base_unit, pytest.mark.category("Report")]
 
 #: schema 1.0 이 보장하던 run 필드. 하나라도 사라지면 소비자가 깨집니다.
 SCHEMA_10_RUN_FIELDS = (
@@ -38,10 +38,12 @@ def _collector(run_meta: dict[str, Any] | None = None) -> ResultCollector:
     return ResultCollector(load_config(env="staging"), _FakePaths(), run_meta)
 
 
+@pytest.mark.tc_id("UNIT301")
 def test_schema_version_is_1_1() -> None:
     assert _collector().to_dict()["schema_version"] == "1.1"
 
 
+@pytest.mark.tc_id("UNIT302")
 def test_schema_10_fields_all_survive() -> None:
     """기존 필드는 없애지 않고 추가만 한다 (result_schema.md 의 규칙)."""
     run = _collector().to_dict()["run"]
@@ -49,6 +51,7 @@ def test_schema_10_fields_all_survive() -> None:
     assert missing == []
 
 
+@pytest.mark.tc_id("UNIT303")
 def test_run_meta_is_merged() -> None:
     """conftest 가 넘긴 메타가 run 블록에 들어간다."""
     run = _collector({
@@ -64,6 +67,7 @@ def test_run_meta_is_merged() -> None:
     assert run["workers"] == 4
 
 
+@pytest.mark.tc_id("UNIT304")
 def test_meta_keys_exist_even_without_run_meta(monkeypatch: pytest.MonkeyPatch) -> None:
     """메타를 못 모았어도 키는 있고 값이 null 이다. 소비자가 KeyError 를 안 만난다."""
     # delenv 는 .env 에 값이 있으면 load_dotenv(override=False) 가 재주입해
@@ -77,6 +81,7 @@ def test_meta_keys_exist_even_without_run_meta(monkeypatch: pytest.MonkeyPatch) 
     assert run["workers"] == 1
 
 
+@pytest.mark.tc_id("UNIT305")
 def test_empty_app_version_becomes_null() -> None:
     """설정이 빈 문자열이면 result.json 에는 null 로 넣는다."""
     config = load_config(env="staging")
@@ -85,6 +90,7 @@ def test_empty_app_version_becomes_null() -> None:
     assert run["app_version"] is None
 
 
+@pytest.mark.tc_id("UNIT306")
 def test_app_version_is_passed_through() -> None:
     config = load_config(env="staging")
     config.app_version = "v2.14.3 (build 8821)"
