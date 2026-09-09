@@ -1,4 +1,4 @@
-# HANDOFF: 코드 리뷰 지적 반영 (실행 메타·마스킹·설정 파싱 + 회귀 테스트 배증)
+# HANDOFF: 리포트 자동 열기 · 기대결과 표시(schema 1.2) · spec_pending (2026-09-09)
 
 > 최신 세션이 맨 위입니다. 아래로 갈수록 과거 기록입니다.
 
@@ -6,16 +6,142 @@
 
 ## Goal
 
+고객사 프로젝트(`qmeet-e2e`)에서 나온 요청 3건을 **Base 공통 기능으로 올려받는 것.**
+
+## Current Status: Completed — `main` 에 커밋·푸시됨
+
+```
+playwright_base  bddf11c..37bfab6  main -> main   (18 files, +632/-20)
+qmeet-e2e        fa3a500..fe60a61  main -> main   (같은 공통 파일 포함)
+```
+
+`qmeet-e2e` 의 `utils/`·`reporting/`·`conftest.py` 와 **바이트 단위로 동일**합니다
+(`diff -rq` EXIT=0).
+
+> **주의: 이번 작업은 순서가 거꾸로였습니다.** 고객사 저장소에서 먼저 만들고
+> 나중에 여기로 옮겼습니다. 규칙은 "Base 에서 고쳐 각 프로젝트로 내려보낸다" 입니다.
+> 다음에는 공통 기능이라고 판단되는 순간 **여기부터** 고치세요.
+
+### What Was Done
+
+**① 리포트 자동 열기**
+
+실행이 끝나면 `report.html` 이 기본 브라우저에 뜹니다.
+
+| 자리 | 내용 |
+|---|---|
+| `conftest.py` | `--open-report` / `--no-open-report`, `pytest_terminal_summary` 끝에서 열기 |
+| `utils/config.py` | `RunConfig.open_report`, `CI_ENV_KEYS`, `_running_in_ci()` |
+| `reporting/report_generator.py` | `open_in_browser()`, `OPEN_TIMEOUT_SEC` |
+| `config/default.yaml` | `report.auto_open: true` / `.env` 는 `OPEN_REPORT` |
+
+- **CI 환경변수가 잡히거나 `-n` 병렬이면 기본값이 자동으로 꺼집니다.**
+  아무도 못 보는 창이 남아 실행이 안 끝나는 것을 막습니다.
+- 우선순위: CLI > `.env` > yaml. 둘 다 주면 **끄는 쪽**이 이깁니다.
+- **`webbrowser.open` 은 예외가 아니라 "안 돌아오는" 실패를 합니다.**
+  `BROWSER` 환경변수가 있으면 `GenericBrowser` → `Popen().wait()` 이라
+  브라우저를 닫을 때까지 블로킹입니다. try/except 로는 못 막으므로
+  **데몬 스레드**에서 부르고 `OPEN_TIMEOUT_SEC` 만 기다립니다.
+
+**② 기대결과 — result.json schema 1.1 → 1.2**
+
+`PASS` 만 찍혀 있으면 무엇이 맞았다는 것인지 리포트만 보고는 알 수 없었습니다.
+TC 명세서의 「기대결과 / 확인사항」 칸을 옮겨 적는 자리를 두 개 만들었습니다.
+
+```python
+@pytest.mark.expected("...")            # TC 대표 (명세의 마지막 칸)
+with test_step("...", expected="..."):  # 그 단계의 기대결과
+```
+
+비워두면 리포트에 그 줄이 나오지 않습니다. **기존 필드는 그대로 두고 추가만** 했으므로
+1.1 을 읽던 쪽은 영향이 없습니다.
+
+**③ `spec_pending` marker + `tests/conftest.py`**
+
+TC 명세서에 없는 테스트를 **어떤 실행에서도** 빼는 marker 입니다.
+
+> **`pytest.ini` 의 `addopts` 로는 안 됩니다.** 명령줄 `-m` 이 `addopts` 의 `-m` 을
+> 덮어써서 `pytest -m regression` 한 줄로 제외가 통째로 풀립니다.
+> 그래서 `tests/conftest.py` 의 수집 훅(`pytest_collection_modifyitems`)에서 뺍니다.
+
+`pytest -m spec_pending` 으로 지목하면 실행됩니다.
+
+**④ 그 밖에**
+
+- 인쇄 전용 `#failed-tests` 섹션의 스크린샷에서 `loading="lazy"` 제거.
+  `display:none` 안의 lazy 이미지는 뷰포트에 들어올 일이 없어 브라우저가 영영
+  받지 않을 수 있고, 그러면 **인쇄본이 남기려던 Evidence 를 정확히 잃습니다.**
+- `utils/testmeta.py` 의 `NON_CATEGORY_MARKERS` 에 `spec_pending` 추가.
+  메타 marker 를 여기 넣는 것을 잊으면 그 marker 만 붙은 테스트의 Category 가
+  `Spec_Pending` 이 됩니다. **`tests/unit/test_testmeta_category.py` 를 신설**해
+  메타 marker 8종을 전수로 못 박았습니다.
+
+회귀 테스트 **81 → 106개**.
+
+## Remaining Work
+
+1. **`reporting/ci_summary.py` 의 cp949 크래시** — `main()` 의 `print` 앞에
+   `sys.stdout.reconfigure(encoding="utf-8")` 를 넣거나 아이콘을 ASCII 로.
+   HANDOFF 가 검증 절차로 안내하는 명령이라 고칠 값어치가 있습니다.
+2. **아카이브의 「What Was NOT Done」 3건 결정** — 특히 3번(`base_unit` 실행이
+   artifacts 보호 슬롯을 잠식)은 실측으로 확인된 현상입니다.
+3. **`open_in_browser` 를 Windows 밖에서 실측한 적이 없습니다.** 블로킹 회피는
+   단위 테스트로만 검증했습니다(UNIT420). Linux/WSL 에서 `BROWSER` 를 걸고
+   한 번 돌려보면 좋습니다.
+4. 5회차의 잔여 항목(인쇄 미리보기 육안 확인, Template 경로 실증)은 아래 5회차
+   기록에 그대로 남아 있습니다.
+
+## Verification Commands
+
+```bash
+# 게이트 4종 — 2026-09-09 실측
+pytest                    # 30 passed, 110 deselected  (27s)
+pytest -n 2               # 30 passed                  (11s)
+pytest -m failure_demo    # 3 failed, 1 skipped        (12s)  <- 의도된 실패
+pytest -m base_unit       # 106 passed, 34 deselected  (3.4s) <- 브라우저 없음
+
+# 30 이 아니면 예제 사이트(demo.playwright.dev/todomvc) 변경을 먼저 의심할 것
+# base_unit 수는 Base 자체 테스트가 늘면 같이 는다. 갑자기 줄었으면 의심할 것
+# spec_pending 이 붙은 테스트는 이 저장소에 아직 없다 (marker 와 훅만 있음)
+
+# 고객사 프로젝트와 공통 파일이 일치하는지 (EXIT=0 이어야 함)
+#  2026-09-09 확인: 아래 3개 모두 EXIT=0
+diff -rq --exclude=__pycache__ utils ../qmeet-e2e/utils
+diff -rq --exclude=__pycache__ reporting ../qmeet-e2e/reporting
+diff -q conftest.py ../qmeet-e2e/conftest.py
+
+# 기대결과가 실제로 실렸는지 (콘솔 인코딩 때문에 python 으로 직접 읽을 것)
+python -c "import json,io,pathlib; run=pathlib.Path(open('artifacts/latest_run.txt',encoding='utf-8').read().strip()); d=json.load(io.open(run/'report'/'result.json',encoding='utf-8')); print(d['schema_version'], [(t['test_id'], t.get('expected')) for t in d['tests']][:3])"
+```
+
+> `tests/unit/` 는 이제 `diff` 대상이 아닙니다. 고객사 저장소가 자기 프로젝트용
+> 단위 테스트를 추가할 수 있기 때문입니다. 공통 3개만 EXIT=0 이면 됩니다.
+
+## Commits
+
+```
+playwright_base  bddf11c..37bfab6  main -> main   (18 files, +632/-20)
+```
+
+원격: `https://github.com/KimLakYoung111/playwright_base` (**PUBLIC**).
+**고객사 URL·계정은 절대 넣지 마세요.**
+
+---
+
+## Previous Handoff (archived) — 코드 리뷰 지적 반영
+
+### Goal
+
 5회차에 넣은 **실행 메타(schema 1.1)와 artifacts 자동 정리**를 고객사 프로젝트
 (`qmeet`)로 내려보내는 과정에서 `/code-review` 가 결함 15건을 올렸습니다.
 전부 이 저장소가 원인이므로 **여기서 고치고 각 프로젝트로 다시 내려보냈습니다.**
 
-## Current Status: Completed — 커밋 전 (워킹트리에만 있음)
+### Current Status: Completed — 커밋 전 (워킹트리에만 있음)
 
 게이트 4종 통과. `qmeet` 저장소의 `utils/`·`reporting/`·`tests/unit/`·`conftest.py` 는
 이 저장소와 **바이트 단위로 동일**합니다 (`diff -rq` EXIT=0).
 
-### What Was Done
+#### What Was Done
 
 | 파일 | 수정 |
 |---|---|
@@ -40,7 +166,7 @@
 detached HEAD, untracked=dirty, v2 폴백, URL 자격증명 3형태, yaml 빈 값(설정 7종
 parametrize), 따옴표 친 불리언, 숫자형 버전.
 
-### What Was NOT Done
+#### What Was NOT Done
 
 리뷰 지적 중 **설계 판단이 필요한 3건은 고치지 않았습니다.**
 
@@ -55,7 +181,7 @@ parametrize), 따옴표 친 불리언, 숫자형 버전.
    5개가 껍데기로 찹니다. 고치려면 "base_unit 실행은 artifacts 를 만들지 않는다"
    같은 설계 변경이 필요합니다.
 
-## What Worked
+### What Worked
 
 - **고객사 프로젝트에서 고치지 않고 Base 로 올려 고친 것.** `qmeet` 에서 직접
   고쳤으면 다음 동기화에 되돌아갔습니다. 고친 뒤 다시 내려보내 두 저장소를 맞췄습니다.
@@ -64,7 +190,7 @@ parametrize), 따옴표 친 불리언, 숫자형 버전.
 - **`git status --porcelain=v2 --branch` 한 방.** `# branch.oid`/`# branch.head` 를
   읽고, `#` 로 시작하지 않는 줄이 하나라도 있으면 dirty 입니다.
 
-## What Didn't Work / Gotchas
+### What Didn't Work / Gotchas
 
 - **`python -m reporting.ci_summary` 가 Windows 콘솔에서 죽습니다.**
   `UnicodeEncodeError: 'cp949' codec can't encode character '\u274c'` — 실패한
@@ -77,7 +203,7 @@ parametrize), 따옴표 친 불리언, 숫자형 버전.
 - **`Path.read_text(newline=...)` 는 Python 3.13 부터입니다.** 3.12 에서는 TypeError.
   CRLF 를 보존하려면 `io.open(p, newline="")` 을 쓰세요.
 
-## Remaining Work
+### Remaining Work
 
 1. **`reporting/ci_summary.py` 의 cp949 크래시** — `main()` 의 `print` 앞에
    `sys.stdout.reconfigure(encoding="utf-8")` 를 넣거나 아이콘을 ASCII 로.
@@ -85,7 +211,7 @@ parametrize), 따옴표 친 불리언, 숫자형 버전.
 3. 5회차의 잔여 항목(인쇄 미리보기 육안 확인, Template 경로 실증)은 아래 5회차
    기록에 그대로 남아 있습니다.
 
-## Verification Commands
+### Verification Commands
 
 ```bash
 # 게이트 4종 — 이 세션에서 실제로 나온 수치
@@ -104,7 +230,7 @@ diff -rq --exclude=__pycache__ tests/unit ../qmeet/tests/unit
 diff -q conftest.py ../qmeet/conftest.py
 ```
 
-## Uncommitted Changes
+### Uncommitted Changes
 
 ```
  M HANDOFF.md                        M utils/config.py
