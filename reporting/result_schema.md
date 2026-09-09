@@ -1,4 +1,4 @@
-# result.json 스키마 (schema_version 1.1)
+# result.json 스키마 (schema_version 1.2)
 
 `artifacts/<run_id>/report/result.json` 의 구조입니다.
 이 파일은 **표준 인터페이스**입니다. Test Runner UI(PySide6), 사내 Dashboard,
@@ -8,7 +8,7 @@ Slack/Email 알림, Trend Report, CI 연동은 모두 HTML 이 아니라 이 JSO
 
 ```jsonc
 {
-  "schema_version": "1.1",
+  "schema_version": "1.2",
 
   "run": {
     "run_id": "20260906_133000",        // artifacts 폴더 이름과 동일
@@ -73,6 +73,9 @@ Slack/Email 알림, Trend Report, CI 연동은 모두 HTML 이 아니라 이 JSO
       "file": "tests/login/test_login.py",
       "function": "test_login",
       "category": "Login",              // @pytest.mark.category 또는 업무 marker
+      // --- schema 1.2 에서 추가 ---
+      "expected": "홈으로 이동하고 우상단에 계정 이메일이 보인다",
+                                        // @pytest.mark.expected. 없으면 ""
       "markers": ["smoke", "login"],
       "status": "passed",               // passed|failed|skipped|error|xfailed|xpassed
       "duration": 2.4,                  // setup+call+teardown 합계 (초)
@@ -91,6 +94,8 @@ Slack/Email 알림, Trend Report, CI 연동은 모두 HTML 이 아니라 이 JSO
 
       "steps": [                        // utils.steps.test_step 으로 기록된 항목
         { "index": 1, "name": "로그인 페이지 접속",
+          // --- schema 1.2 에서 추가 --- 명세서의 「기대결과 / 확인사항」 칸. 없으면 ""
+          "expected": "로그인 화면이 뜬다",
           "status": "passed", "duration": 0.62, "error": null }
       ],
 

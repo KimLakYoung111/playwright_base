@@ -184,11 +184,27 @@ pip freeze > requirements.lock
 | 재시도 강제로 끄기 | `pytest --reruns 0` |
 | Trace 항상 남기기 | `pytest --tracing on` |
 | Screenshot 항상 남기기 | `pytest --screenshot on` |
+| 끝나고 리포트 안 띄우기 | `pytest --no-open-report` |
+| CI·병렬에서도 리포트 띄우기 | `pytest --open-report` |
 | 첫 실패에서 멈추기 | `pytest -x` |
 | 실패한 것만 다시 | `pytest --lf` |
 | Evidence 확인용 실패 예제 | `pytest -m failure_demo` |
+| 명세 없는 테스트 (기본 제외) | `pytest -m spec_pending` |
 
 기본 실행(`pytest`)에서는 `failure_demo` 테스트가 자동으로 제외되므로 **항상 전부 PASS** 여야 합니다.
+
+### `spec_pending` — TC 명세가 없는 테스트
+
+TC 명세서에 없는 테스트에 붙입니다. 이것이 붙으면 **`-m` 을 무엇으로 주든 실행되지
+않습니다** (`tests/conftest.py` 가 수집 단계에서 뺍니다). 명세가 확정되면 marker 한
+줄만 지우면 다시 돌아갑니다.
+
+`pytest.ini` 의 `addopts` 로 빼지 않는 이유는, 명령줄에 `-m` 을 주는 순간 그쪽이
+`addopts` 를 덮어써서 `pytest -m regression` 한 줄로 제외가 통째로 풀리기 때문입니다.
+
+```bash
+pytest -m spec_pending      # 명세 없는 테스트만 지목해서 돌리기
+```
 
 지원 환경: `dev` / `staging` / `prod`
 지원 Browser: `chromium` / `firefox` / `webkit`
@@ -206,7 +222,21 @@ artifacts/20260906_133000/report/
 └─ result.json          ← 프로그램이 읽는 표준 결과
 ```
 
-브라우저로 열기만 하면 됩니다.
+**`report.html` 은 실행이 끝나면 기본 브라우저에 자동으로 뜹니다.** 직접 열 필요가
+없습니다. 다음 경우에는 뜨지 않고 콘솔에 경로만 남습니다.
+
+| 안 뜨는 경우 | 이유 | 그래도 띄우려면 |
+|---|---|---|
+| CI 환경 (`CI` / `GITHUB_ACTIONS` / `JENKINS_URL` … 가 잡힘) | 아무도 못 보는 창이 남습니다 | `pytest --open-report` |
+| `pytest -n 2` 병렬 실행 | 커밋 게이트용 실행이라 방해가 됩니다 | `pytest --open-report` |
+| `config/default.yaml` 의 `report.auto_open: false` | 끄기로 정한 것입니다 | `pytest --open-report` |
+| 띄울 브라우저가 없는 환경 (서버 / Docker) | 열지 못했다고 콘솔에 알려줍니다 | — |
+
+한 번만 끄려면 `pytest --no-open-report`, 항상 끄려면 `config/default.yaml` 의
+`report.auto_open` 을 `false` 로 두거나 `.env` 에 `OPEN_REPORT=false` 를 넣습니다.
+`--open-report` 와 `--no-open-report` 를 같이 주면 끄는 쪽을 따릅니다.
+
+직접 열 때는 이렇게 합니다.
 
 ```bash
 # Windows
@@ -229,8 +259,30 @@ start "$(Get-Content artifacts/latest_run.txt)\report\report.html"
 - **Category 별 결과** (업무 영역별 통계)
 - **Failed Tests** 영역 — 실패 사유, 실패 시점 URL, Screenshot 썸네일(클릭하면 확대), Trace / HTML / Log 링크
 - 전체 테스트 표 — 필터(All/Passed/Failed/Skipped) + 검색, 행을 누르면 **Step 목록**이 펼쳐짐
+- **기대결과** — 행을 펼치면 TC 대표 기대결과 한 줄, Step 마다 그 단계의 기대결과
+  (`PASS` 만 보면 무엇이 맞았다는 것인지 알 수 없어서 넣습니다. 아래 참고)
 
 무거운 UI 라이브러리를 쓰지 않고 HTML/CSS/JS 만으로 만들어서 파일 하나만 메일로 보내도 열립니다.
+
+### 기대결과를 리포트에 남기기
+
+`PASS` 만 찍혀 있으면 **무엇이 맞았다는 것인지** 리포트만 보고는 알 수 없습니다.
+TC 명세서의 「기대결과 / 확인사항」 칸을 두 자리에 그대로 옮겨 적습니다.
+
+```python
+@pytest.mark.tc_id("TC002")
+@pytest.mark.expected('"다음" 버튼이 비활성 상태다')      # TC 대표 기대결과 (명세의 마지막 칸)
+def test_next_disabled_when_required_empty(page):
+    ...
+    with test_step("다음 버튼 비활성 확인",
+                   expected='"다음" 버튼이 비활성 상태다'):   # 그 단계의 기대결과
+        expect(page_object.next_button).to_be_disabled()
+```
+
+- 명세서에서 그 칸이 비어 있으면 **여기도 비워두세요.** 지어내면 TC 가 아니게 됩니다
+  (비워두면 리포트에 그 줄이 아예 나오지 않습니다).
+- `result.json` 에는 `tests[].expected` 와 `tests[].steps[].expected` 로 실립니다
+  (schema 1.2).
 
 ### Markdown 요약 (Slack / CI 붙여넣기용)
 
@@ -726,6 +778,7 @@ should_have_status(response, 200)
 @pytest.mark.tc_id("TC001") # TC 관리 도구 ID
 @pytest.mark.category("결제") # Category 를 직접 지정하고 싶을 때
 @pytest.mark.title("정상 로그인")  # docstring 대신 제목을 지정하고 싶을 때
+@pytest.mark.expected("홈으로 이동하고 마이페이지 버튼이 보인다")  # 명세의 기대결과
 ```
 
 ### Category 가 정해지는 순서

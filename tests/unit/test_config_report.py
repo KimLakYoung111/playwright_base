@@ -41,7 +41,13 @@ def yaml_config(monkeypatch: pytest.MonkeyPatch):
             return dict(default_yaml) if path.name == "default.yaml" else {}
 
         monkeypatch.setattr(config_module, "_read_yaml", _fake_read)
-        for key in ("APP_VERSION", "SHOW_TRIGGERED_BY",
+        # CI 판별 변수도 비웁니다. GitHub Actions 에서 이 파일을 돌리면 CI=true 가
+        # 이미 들어 있어 open_report 기본값 테스트가 통째로 뒤집힙니다.
+        #  delenv 가 아니라 빈 문자열로 덮어씁니다 — 위 docstring 과 같은 이유입니다.
+        #  지우기만 하면 load_config 가 .env 를 다시 읽어(override=False) 되살립니다.
+        for key in config_module.CI_ENV_KEYS:
+            monkeypatch.setenv(key, env.get(key, ""))
+        for key in ("APP_VERSION", "SHOW_TRIGGERED_BY", "OPEN_REPORT",
                     "ARTIFACTS_KEEP_DAYS", "ARTIFACTS_KEEP_MIN_RUNS",
                     # 아래는 yaml 빈 값 회귀 테스트용. 하나라도 빠뜨리면 .env 나
                     # 셸의 값이 yaml 을 덮어써 테스트가 조용히 통과합니다.
@@ -126,6 +132,54 @@ def test_empty_show_triggered_by_falls_back_to_default(yaml_config) -> None:
     """
     yaml_config({"report": {"show_triggered_by": None}})
     assert load_config(env="staging").show_triggered_by is True
+
+
+# ---------------------------------------------------------------------------
+# report.auto_open (실행 후 리포트 자동 열기)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.tc_id("UNIT216")
+def test_open_report_defaults_to_true(yaml_config) -> None:
+    """설정을 안 주면 켜져 있다 (로컬에서 실행하면 리포트가 뜬다)."""
+    yaml_config({})
+    assert load_config(env="staging").open_report is True
+
+
+@pytest.mark.tc_id("UNIT217")
+def test_open_report_can_be_disabled_in_yaml(yaml_config) -> None:
+    """yaml 로 끌 수 있다."""
+    yaml_config({"report": {"auto_open": False}})
+    assert load_config(env="staging").open_report is False
+
+
+@pytest.mark.tc_id("UNIT218")
+def test_open_report_is_off_in_ci(yaml_config, monkeypatch: pytest.MonkeyPatch) -> None:
+    """CI 에서는 기본값이 꺼진다.
+
+    아무도 못 보는 브라우저 창이 떠서 실행이 끝나지 않는 것을 막는다.
+    """
+    yaml_config({})
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    assert load_config(env="staging").open_report is False
+
+
+@pytest.mark.tc_id("UNIT219")
+def test_explicit_env_wins_over_ci_detection(yaml_config, monkeypatch: pytest.MonkeyPatch) -> None:
+    """CI 자동 제외는 '기본값' 만 바꾼다. 직접 켜면 켜져야 한다."""
+    yaml_config({}, OPEN_REPORT="true")
+    monkeypatch.setenv("CI", "true")
+    assert load_config(env="staging").open_report is True
+
+
+@pytest.mark.tc_id("UNIT220")
+def test_ci_set_to_false_is_not_ci(yaml_config, monkeypatch: pytest.MonkeyPatch) -> None:
+    """``CI=false`` 는 CI 가 아니다.
+
+    "값이 있으면 CI" 로 보면 이 흔한 설정에서 리포트가 조용히 안 뜬다.
+    """
+    yaml_config({})
+    monkeypatch.setenv("CI", "false")
+    assert load_config(env="staging").open_report is True
 
 
 # ---------------------------------------------------------------------------

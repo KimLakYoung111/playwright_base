@@ -7,13 +7,18 @@ pytest-html 이 만드는 pytest_report.html 은 자동화 담당자용,
 from __future__ import annotations
 
 import json
+import threading
+import webbrowser
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from reporting.result_collector import FAILURE_STATUSES, ResultCollector
+from utils.logger import get_logger
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
+
+logger = get_logger()
 
 
 def format_duration(seconds: float) -> str:
@@ -186,3 +191,55 @@ def generate_all(collector: ResultCollector) -> dict[str, Path]:
         "result_json": write_json(collector, paths.result_json),
         "custom_report": render_html(collector, paths.custom_report),
     }
+
+
+# ----------------------------------------------------------------------
+# 리포트 열기
+# ----------------------------------------------------------------------
+#: 브라우저가 뜨기를 기다리는 시간(초).
+#:
+#: ``webbrowser.open`` 은 **돌아오지 않을 수 있습니다.** ``BROWSER`` 환경변수가
+#: 가리키는 명령을 쓰면 Python 이 ``GenericBrowser`` 를 골라 ``Popen(...).wait()``
+#: 를 하는데, 이건 사용자가 브라우저를 닫을 때까지 블로킹입니다 (Linux/WSL 에서
+#: 흔합니다). 그대로 두면 pytest 가 요약을 다 찍어놓고 끝나지 않습니다.
+#: **멈추는 것은 예외가 아니라서 try/except 로는 못 막습니다.**
+OPEN_TIMEOUT_SEC = 5.0
+
+
+def open_in_browser(path: Path) -> bool:
+    """리포트를 기본 브라우저로 엽니다. 실제로 열었으면 True.
+
+    **예외를 올리지도, 실행을 멈추지도 않습니다.** 테스트 결과와 아무 상관이 없는
+    부가 기능이라, 띄울 브라우저가 없는 환경(헤드리스 서버, WSL, Docker)에서
+    여기가 터지거나 매달려서 pytest 가 안 끝나면 안 됩니다. 열지 못하면 False 를
+    주고, 부르는 쪽이 콘솔에 경로를 안내합니다.
+
+    실제 호출은 **데몬 스레드**에서 합니다. :data:`OPEN_TIMEOUT_SEC` 안에 안
+    돌아오면 "브라우저는 떴고 그 프로세스를 기다리는 중" 으로 보고 True 를 주면서
+    빠져나옵니다. 데몬이라 남아 있어도 인터프리터 종료를 막지 않습니다.
+    """
+    if not path.exists():
+        logger.warning("리포트 파일이 없어 열지 못했습니다: %s", path)
+        return False
+
+    outcome: list[bool] = []
+
+    def _open() -> None:
+        try:
+            outcome.append(webbrowser.open(path.as_uri()))
+        except Exception as exc:                   # webbrowser 는 OSError 외에도 냅니다
+            logger.warning("리포트를 브라우저로 열지 못했습니다: %s", exc)
+            outcome.append(False)
+
+    thread = threading.Thread(target=_open, name="open-report", daemon=True)
+    thread.start()
+    thread.join(OPEN_TIMEOUT_SEC)
+
+    if thread.is_alive():
+        logger.info("브라우저가 떠 있는 동안 기다리지 않고 넘어갑니다: %s", path)
+        return True
+
+    opened = outcome[0] if outcome else False
+    if not opened:
+        logger.warning("열 수 있는 브라우저를 찾지 못했습니다: %s", path)
+    return opened

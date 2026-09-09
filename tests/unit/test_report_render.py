@@ -12,6 +12,8 @@ Base 프레임워크 자체의 회귀 테스트라 고객사용 리포트에 섞
 from __future__ import annotations
 
 import re
+import threading
+import time
 from pathlib import Path
 from typing import Any
 
@@ -42,6 +44,7 @@ def _test_row(**overrides: Any) -> dict[str, Any]:
         "file": "tests/login/test_login.py",
         "function": "test_login",
         "category": "Login",
+        "expected": "",
         "markers": ["smoke"],
         "status": "passed",
         "duration": 1.0,
@@ -205,6 +208,28 @@ def test_print_stylesheet_is_present(tmp_path: Path) -> None:
     assert "break-inside" in print_block
 
 
+@pytest.mark.tc_id("UNIT421")
+def test_failed_card_screenshots_are_not_lazy(tmp_path: Path) -> None:
+    """인쇄 전용 실패 카드의 스크린샷은 lazy 로 두면 안 된다.
+
+    ``#failed-tests`` 는 화면에서 ``display:none`` 이고 인쇄할 때만 나타난다.
+    display:none 안의 lazy 이미지는 뷰포트에 들어올 일이 없어 브라우저가 영영
+    받지 않을 수 있다. 그러면 종이에 남기려던 실패 스크린샷이 그 자리에서 비어
+    버린다 — Evidence 를 남기려는 섹션이 정확히 그 Evidence 를 잃는다.
+    """
+    html = _render(tmp_path, tests=[_test_row(
+        status="failed",
+        error={"type": "AssertionError", "message": "boom",
+               "traceback": "boom", "phase": "call"},
+        artifacts={"screenshot": "screenshots/TC001.png"},
+    )])
+    card_start = html.find('id="failed-tests"')
+    assert card_start != -1, "Failed Tests 섹션을 찾지 못했다"
+    card = html[card_start:html.find("</section>", card_start)]
+    assert "<img" in card, "실패 카드에 스크린샷이 없다 (테스트 전제가 깨졌다)"
+    assert 'loading="lazy"' not in card
+
+
 def _run_with_meta(**overrides: Any) -> dict[str, Any]:
     """schema 1.1 메타가 채워진 run 블록."""
     run = dict(_data()["run"])
@@ -273,3 +298,127 @@ def test_header_distinguishes_unknown_dirty_state(tmp_path: Path) -> None:
         git={"branch": "main", "commit": "5d1ed8b", "dirty": None}))
     assert "변경 여부 확인 못 함" in html
     assert "변경 있음" not in html
+
+
+# ---------------------------------------------------------------------------
+# open_in_browser (실행 후 리포트 자동 열기)
+#
+#   실제로 창을 띄우면 테스트가 브라우저를 남기므로 webbrowser.open 을 갈아끼웁니다.
+# ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# 기대결과 (schema 1.2)
+#
+#   PASS 만 찍혀 있으면 무엇이 맞았다는 것인지 알 수 없어서 넣은 값입니다.
+#   비어 있을 때 "기대결과" 라는 빈 줄이 남으면 리포트가 지저분해지므로
+#   "있으면 나오고 없으면 아예 안 나온다" 를 양쪽 다 못 박습니다.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.tc_id("UNIT416")
+def test_test_level_expected_is_rendered(tmp_path: Path) -> None:
+    """TC 대표 기대결과가 리포트에 그대로 나온다."""
+    html = _render(tmp_path, tests=[_test_row(expected='"다음" 버튼이 비활성 상태다')])
+    assert "기대결과" in html
+    assert "&#34;다음&#34; 버튼이 비활성 상태다" in html or '"다음" 버튼이 비활성 상태다' in html
+
+
+@pytest.mark.tc_id("UNIT417")
+def test_step_expected_is_rendered(tmp_path: Path) -> None:
+    """Step 마다의 기대결과가 그 Step 아래 줄로 나온다."""
+    html = _render(tmp_path, tests=[_test_row(steps=[
+        {"index": 1, "name": "다음 버튼 상태 확인", "expected": "다음 단계로 넘어간다",
+         "status": "passed", "duration": 0.5, "error": None},
+    ])])
+    assert '<li class="sexp">' in html
+    assert "다음 단계로 넘어간다" in html
+
+
+@pytest.mark.tc_id("UNIT418")
+def test_empty_expected_leaves_no_row(tmp_path: Path) -> None:
+    """비어 있으면 줄 자체를 만들지 않는다.
+
+    명세에 기대결과가 없는 단계까지 빈 줄로 채우면 리포트를 읽기 어려워진다.
+    """
+    html = _render(tmp_path, tests=[_test_row(expected="", steps=[
+        {"index": 1, "name": "화면 접속", "expected": "",
+         "status": "passed", "duration": 0.5, "error": None},
+    ])])
+    assert '<li class="sexp">' not in html
+    assert "기대결과</span>" not in html
+
+
+@pytest.mark.tc_id("UNIT419")
+def test_missing_expected_key_does_not_break_render(tmp_path: Path) -> None:
+    """schema 1.1 이전에 만든 result.json 에는 이 키가 없다. 그래도 렌더돼야 한다."""
+    row = _test_row()
+    row.pop("expected")
+    html = _render(tmp_path, tests=[row, ])
+    assert "TC001" in html
+    assert '<li class="sexp">' not in html
+
+
+@pytest.mark.tc_id("UNIT413")
+def test_open_in_browser_opens_the_report(tmp_path: Path,
+                                          monkeypatch: pytest.MonkeyPatch) -> None:
+    """파일이 있으면 file:// URI 로 연다."""
+    report = tmp_path / "report.html"
+    report.write_text("<html></html>", encoding="utf-8")
+    called: list[str] = []
+    monkeypatch.setattr(report_generator.webbrowser, "open",
+                        lambda url: called.append(url) or True)
+
+    assert report_generator.open_in_browser(report) is True
+    assert called == [report.as_uri()]
+
+
+@pytest.mark.tc_id("UNIT414")
+def test_open_in_browser_returns_false_when_report_missing(tmp_path: Path) -> None:
+    """리포트 생성이 실패했으면 열 것이 없다. 터지지 않고 False 를 준다."""
+    assert report_generator.open_in_browser(tmp_path / "없는파일.html") is False
+
+
+@pytest.mark.tc_id("UNIT415")
+def test_open_in_browser_swallows_errors(tmp_path: Path,
+                                         monkeypatch: pytest.MonkeyPatch) -> None:
+    """띄울 브라우저가 없는 환경(서버·Docker)에서 pytest 가 죽으면 안 된다.
+
+    부가 기능이 실행 결과를 바꾸는 것이 가장 나쁜 실패다.
+    """
+    report = tmp_path / "report.html"
+    report.write_text("<html></html>", encoding="utf-8")
+
+    def _boom(url: str) -> bool:
+        raise OSError("no browser")
+
+    monkeypatch.setattr(report_generator.webbrowser, "open", _boom)
+    assert report_generator.open_in_browser(report) is False
+
+
+@pytest.mark.tc_id("UNIT420")
+def test_open_in_browser_does_not_hang(tmp_path: Path,
+                                       monkeypatch: pytest.MonkeyPatch) -> None:
+    """``webbrowser.open`` 이 안 돌아와도 pytest 가 멈추면 안 된다.
+
+    ``BROWSER`` 환경변수가 있으면 Python 은 ``GenericBrowser`` 를 골라
+    ``Popen(...).wait()`` 을 한다. 사용자가 브라우저를 닫을 때까지 블로킹이다.
+    **멈추는 것은 예외가 아니라서 try/except 로는 못 막는다.**
+    """
+    report = tmp_path / "report.html"
+    report.write_text("<html></html>", encoding="utf-8")
+
+    release = threading.Event()
+
+    def _blocks_forever(url: str) -> bool:
+        release.wait(30)          # 테스트가 끝나도 프로세스가 남지 않게 상한을 둔다
+        return True
+
+    monkeypatch.setattr(report_generator.webbrowser, "open", _blocks_forever)
+    monkeypatch.setattr(report_generator, "OPEN_TIMEOUT_SEC", 0.05)
+
+    started = time.perf_counter()
+    try:
+        # 브라우저는 실제로 떴다고 보므로 True. 중요한 것은 "돌아온다" 는 것이다.
+        assert report_generator.open_in_browser(report) is True
+        assert time.perf_counter() - started < 5, "기다리지 않고 빠져나와야 한다"
+    finally:
+        release.set()

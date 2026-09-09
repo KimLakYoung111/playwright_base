@@ -15,7 +15,7 @@ from typing import Any
 
 from utils.logger import mask_secrets
 
-SCHEMA_VERSION = "1.1"
+SCHEMA_VERSION = "1.2"
 
 #: 상태값 (result.json 의 tests[].status)
 PASSED, FAILED, SKIPPED, ERROR = "passed", "failed", "skipped", "error"
@@ -85,6 +85,8 @@ class ResultCollector:
                 "file": nodeid.split("::")[0],
                 "function": nodeid.split("::")[-1].split("[")[0],
                 "category": "Uncategorized",
+                # TC 대표 기대결과. @pytest.mark.expected 가 없으면 빈 문자열입니다.
+                "expected": "",
                 "markers": [],
                 "status": PASSED,
                 "duration": 0.0,
@@ -166,7 +168,7 @@ class ResultCollector:
         for key, value in getattr(report, "user_properties", []) or []:
             if key != "meta" or not isinstance(value, dict):
                 continue
-            for field in ("test_id", "name", "category", "markers", "steps",
+            for field in ("test_id", "name", "category", "expected", "markers", "steps",
                           "artifacts", "current_url", "browser"):
                 if value.get(field) not in (None, "", [], {}):
                     record[field] = value[field]

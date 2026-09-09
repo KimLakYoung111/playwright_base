@@ -17,6 +17,12 @@ report:
   # 개인정보가 걸리는 고객사면 false 로 두세요.
   show_triggered_by: true
 
+  # 실행이 끝나면 report.html 을 기본 브라우저로 열지.
+  #  CI 환경변수(CI / GITHUB_ACTIONS / JENKINS_URL 등)가 잡히거나 -n 병렬 실행이면
+  #  이 값이 true 여도 열지 않습니다. 그때도 열려면 pytest --open-report.
+  #  한 번만 끄려면 pytest --no-open-report.
+  auto_open: true
+
 browser: chromium          # chromium | firefox | webkit
 headless: true
 slow_mo: 0                 # ms. 디버깅 시 200~500 정도로 올려서 확인

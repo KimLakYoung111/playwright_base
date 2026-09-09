@@ -47,6 +47,19 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         choices=list(SUPPORTED_ENVS),
         help="실행 환경 (기본값은 .env 의 ENV, 없으면 staging)",
     )
+    group.addoption(
+        "--open-report",
+        action="store_true",
+        default=False,
+        help="실행이 끝나면 report.html 을 브라우저로 엽니다 "
+             "(기본 동작. CI 나 -n 병렬처럼 자동으로 꺼지는 곳에서 강제로 켤 때 씁니다)",
+    )
+    group.addoption(
+        "--no-open-report",
+        action="store_true",
+        default=False,
+        help="실행이 끝나도 리포트를 열지 않습니다 (--open-report 보다 우선)",
+    )
     # --browser / --headed / --base-url 은 pytest-playwright 가 이미 제공합니다.
     # --reruns 는 pytest-rerunfailures 가 제공하며 config 의 retries 값이 기본이 됩니다.
 
@@ -116,6 +129,16 @@ def pytest_configure(config: pytest.Config) -> None:
     elif run_config.retries > 0 and hasattr(config.option, "reruns"):
         config.option.reruns = run_config.retries
 
+    # 리포트 자동 열기: CLI 가 설정보다 우선합니다.
+    #  - 둘 다 주면 끄는 쪽을 따릅니다 (창이 뜨는 쪽이 되돌리기 어려운 동작입니다).
+    #  - -n 병렬은 커밋 게이트용 실행이라 기본으로 끕니다. 필요하면 --open-report.
+    if config.getoption("--no-open-report"):
+        run_config.open_report = False
+    elif config.getoption("--open-report"):
+        run_config.open_report = True
+    elif getattr(config.option, "numprocesses", None):
+        run_config.open_report = False
+
     expect.set_options(timeout=run_config.expect_timeout)
     config._pwbase_config = run_config          # type: ignore[attr-defined]
     config._pwbase_paths = paths                # type: ignore[attr-defined]
@@ -149,9 +172,11 @@ def pytest_configure(config: pytest.Config) -> None:
 
     if not hasattr(config, "workerinput"):      # xdist 워커에서는 중복 출력 방지
         logger.info(
-            "실행 준비 완료 | project=%s env=%s browser=%s headless=%s url=%s",
+            "실행 준비 완료 | project=%s env=%s browser=%s headless=%s url=%s "
+            "open_report=%s",
             run_config.project_name, run_config.env, run_config.browser,
             run_config.headless, run_config.base_url or "-",
+            run_config.open_report,
         )
         logger.info("Artifacts: %s", paths.root)
 
@@ -292,6 +317,7 @@ def _test_context(request: pytest.FixtureRequest) -> Generator[testmeta.TestMeta
         "test_id": meta.test_id,
         "name": meta.title,
         "category": meta.category,
+        "expected": meta.expected,
         "markers": meta.markers,
         "steps": meta.steps,
         "artifacts": meta.artifacts,
@@ -340,3 +366,13 @@ def pytest_terminal_summary(terminalreporter: Any, exitstatus: int, config: pyte
     terminalreporter.write_line("")
     for line in report_generator.console_summary(collector).splitlines():
         terminalreporter.write_line(line)
+
+    # 요약을 먼저 찍고 나서 엽니다. 브라우저가 뜨는 데 시간이 걸려도
+    # 콘솔에는 경로가 이미 남아 있어야 합니다.
+    run_config: RunConfig | None = getattr(config, "_pwbase_config", None)
+    if run_config is not None and run_config.open_report:
+        if not report_generator.open_in_browser(collector.paths.custom_report):
+            terminalreporter.write_line(
+                "리포트를 자동으로 열지 못했습니다. 위 Custom Report 경로를 직접 열어주세요.",
+                yellow=True,
+            )

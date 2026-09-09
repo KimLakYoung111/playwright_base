@@ -5,6 +5,7 @@
 
     @pytest.mark.tc_id("TC001")
     @pytest.mark.category("Login")
+    @pytest.mark.expected("홈으로 이동하고 우상단에 계정 이메일이 보인다")
     @pytest.mark.smoke
     def test_login(page):
         \"\"\"정상 로그인\"\"\"
@@ -22,14 +23,15 @@ from utils.paths import slugify
 
 #: 리포트의 Marker 목록에 표시하지 않는 marker (메타/설정용)
 HIDDEN_MARKERS = frozenset({
-    "tc_id", "category", "title",
+    "tc_id", "category", "title", "expected",
     "parametrize", "usefixtures", "filterwarnings",
     "browser_context_args",              # pytest-playwright 설정용
 })
 
 #: Category 로 쓰지 않는 marker (실행 유형 / 특성 / 플러그인 제공)
 NON_CATEGORY_MARKERS = HIDDEN_MARKERS | frozenset({
-    "smoke", "regression", "e2e", "failure_demo", "base_unit", "slow", "flaky",
+    "smoke", "regression", "e2e", "failure_demo", "base_unit", "spec_pending",
+    "slow", "flaky",
     "skip", "skipif", "xfail",
     "only_browser", "skip_browser",      # pytest-playwright 제공
 })
@@ -44,6 +46,8 @@ class TestMeta:
     test_id: str
     title: str
     category: str
+    #: TC 대표 기대결과 (명세서의 마지막 「기대결과」 칸). 없으면 빈 문자열.
+    expected: str = ""
     function: str = ""
     param_id: str = ""                 # parametrize 원본 id (browser 포함)
     markers: list[str] = field(default_factory=list)
@@ -155,7 +159,10 @@ def build_meta(item: pytest.Item) -> TestMeta:
     if label:
         title = f"{title} [{label}]"
 
+    expected = (_marker_arg(item, "expected") or "").strip()
+
     return TestMeta(test_id=test_id, title=title, category=category,
+                    expected=expected,
                     function=function, param_id=param_id, markers=markers)
 
 

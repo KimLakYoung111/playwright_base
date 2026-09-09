@@ -39,7 +39,8 @@ TC 하나당 이 블록 하나입니다. 그대로 복사해서 채우세요.
 | 실행 집합 | `@pytest.mark.smoke` / `regression` / `e2e` | 아래 「실행 집합 고르기」 참고 |
 | 사전조건 | fixture 선택 (`page` / `role_page("user")`) | 로그인이 필요하면 `role_page` → `fixtures/auth.py::perform_login` 구현 필요 |
 | 절차 1줄 | `with test_step("…"):` 1개 | **한 줄 = Step 하나.** 리포트에 이 단위로 찍힙니다 |
-| 기대결과 | `expect(...)` 단정 | 여기가 비면 "클릭만 하고 끝나는 테스트" 가 됩니다 |
+| 기대결과 (절차 줄마다) | `test_step("…", expected="…")` + `expect(...)` 단정 | 여기가 비면 "클릭만 하고 끝나는 테스트" 가 됩니다. `expected` 는 **리포트에 그대로 찍히는 문장**입니다 |
+| 기대결과 (TC 대표 = 마지막 칸) | `@pytest.mark.expected("…")` | 리포트에서 그 TC 를 펼치면 맨 위에 한 줄로 보입니다 |
 | 테스트 데이터 | 코드에서 생성 또는 `data/*.yaml` | 케이스가 여러 개면 yaml 로 빼서 파라미터화 |
 
 ### 실행 집합 고르기

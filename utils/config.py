@@ -71,6 +71,9 @@ class RunConfig:
     app_version: str = ""
     #: 실행자 이름을 리포트에 남길지 (개인정보 우려로 끌 수 있음)
     show_triggered_by: bool = True
+    #: 실행이 끝나면 report.html 을 기본 브라우저로 열지.
+    #: CI 로 보이는 환경에서는 기본값이 False 가 됩니다 (:func:`_running_in_ci`).
+    open_report: bool = True
 
     retries: int = 0
 
@@ -163,11 +166,36 @@ def _env_int(key: str, default: int) -> int:
 TRUE_STRINGS = frozenset({"1", "true", "yes", "y", "on"})
 
 
+#: 거짓으로 읽는 문자열. CI 판별처럼 "값이 있으면 참" 인 곳에서 예외를 만듭니다.
+FALSE_STRINGS = frozenset({"0", "false", "no", "n", "off"})
+
+#: CI 라고 볼 환경변수. 대부분의 CI 가 이 중 하나를 자동으로 넣어줍니다.
+#: JENKINS_URL 처럼 값이 "true" 가 아닌 것도 있어 TRUE_STRINGS 로는 못 봅니다.
+CI_ENV_KEYS = (
+    "CI", "GITHUB_ACTIONS", "GITLAB_CI", "JENKINS_URL",
+    "TF_BUILD", "BUILDKITE", "CIRCLECI", "TEAMCITY_VERSION",
+)
+
+
 def _env_bool(key: str, default: bool) -> bool:
     value = os.getenv(key)
     if value is None or not value.strip():
         return default
     return value.strip().lower() in TRUE_STRINGS
+
+
+def _running_in_ci() -> bool:
+    """CI 위에서 도는 중인지.
+
+    CI 에서 브라우저를 띄우면 아무도 못 보는 창이 프로세스에 남아 실행이
+    끝나지 않을 수 있습니다. 그래서 리포트 자동 열기의 **기본값만** 여기서
+    끕니다. ``OPEN_REPORT`` 나 ``--open-report`` 를 직접 주면 그것이 우선입니다.
+    """
+    for key in CI_ENV_KEYS:
+        value = (os.getenv(key) or "").strip().lower()
+        if value and value not in FALSE_STRINGS:
+            return True
+    return False
 
 
 def _yaml_missing(value: Any) -> bool:
@@ -305,6 +333,10 @@ def load_config(
     if headed:                       # --headed 는 어떤 설정보다 우선
         resolved_headless = False
 
+    # 리포트 자동 열기. yaml 이 켜져 있어도 CI 면 기본값을 꺼둡니다.
+    # OPEN_REPORT 를 직접 준 경우에는 CI 여부와 무관하게 그 값을 씁니다.
+    open_report_default = _yaml_bool(report_cfg, "auto_open", True) and not _running_in_ci()
+
     return RunConfig(
         project_name=_env_str("PROJECT_NAME", merged.get("project_name", "Automation")),
         env=env,
@@ -333,6 +365,7 @@ def load_config(
         app_version=_env_str("APP_VERSION", _yaml_str(merged, "app_version", "")),
         show_triggered_by=_env_bool("SHOW_TRIGGERED_BY",
                                     _yaml_bool(report_cfg, "show_triggered_by", True)),
+        open_report=_env_bool("OPEN_REPORT", open_report_default),
         retries=_env_int("RETRIES", _yaml_int(merged, "retries", 0)),
         artifacts_keep_days=_env_int("ARTIFACTS_KEEP_DAYS",
                                      _yaml_int(artifacts_cfg, "keep_days", 14)),

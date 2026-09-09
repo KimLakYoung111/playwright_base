@@ -82,7 +82,12 @@ tbody tr:last-child td{border-bottom:none}
 .minibar{height:6px;width:110px;background:var(--line);border-radius:999px;overflow:hidden}
 .minibar span{display:block;height:100%;background:var(--pass)}
 
-/* ---------- failed section ---------- */
+/* ---------- failed section (인쇄 전용) ---------- */
+/* 화면에서는 실패도 All Tests 표 안에서 TC 를 눌러 펼쳐 봅니다.
+   같은 내용을 위아래 두 군데 두면 어느 쪽을 봐야 하는지 헷갈리기 때문입니다.
+   인쇄본은 #all-tests 를 통째로 숨기므로(아래 @media print) 이 섹션이 없으면
+   종이에 실패 내용이 하나도 남지 않습니다. 그래서 지우지 않고 인쇄 전용으로 둡니다. */
+#failed-tests{display:none}
 .fail-card{border:1px solid var(--line);border-left:3px solid var(--fail);border-radius:8px;
   padding:14px 16px;margin-bottom:12px;background:var(--panel)}
 .fail-card h3{margin:0 0 8px;font-size:14px}
@@ -114,7 +119,12 @@ tr.detail td{background:var(--bg)}
 .steps li{display:flex;align-items:center;gap:10px;padding:4px 0;border-bottom:1px dashed var(--line)}
 .steps li:last-child{border-bottom:none}
 .steps .sname{flex:1}
+/* Step 아래 붙는 기대결과 한 줄. 절차(굵은 줄)와 구분되게 들여쓰고 흐리게 둡니다. */
+.steps li.sexp{font-size:12px;color:var(--muted);padding:2px 0 6px 8px;border-bottom:none}
 .caret{display:inline-block;width:10px;color:var(--muted)}
+/* 전체 페이지 스크린샷은 세로가 길어서 그대로 두면 펼친 행이 화면을 다 먹습니다.
+   위쪽만 잘라 보여주고, 전체는 눌러서 라이트박스로 봅니다. */
+tr.detail .thumbs img{max-height:280px;object-fit:cover;object-position:top}
 
 /* ---------- lightbox ---------- */
 #lb{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;
@@ -138,6 +148,8 @@ footer{color:var(--muted);font-size:12px;text-align:center;margin-top:24px}
   /* 인쇄에서 뺄 것: 전체 테스트 표 섹션(표+필터 버튼), 느린 테스트 섹션, 라이트박스.
      섹션 안쪽 요소만 숨기면 빈 테두리 박스가 인쇄본에 남으므로 section 자체를 숨긴다 */
   #slow-tests,#all-tests,#lb{display:none !important}
+  /* 화면에서 숨겨둔 실패 섹션은 인쇄본에서만 되살립니다 */
+  #failed-tests{display:block !important}
   /* 실패 카드가 페이지 중간에서 잘리지 않게 */
   .fail-card{break-inside:avoid;page-break-inside:avoid}
   /* 트레이스백이 길면 수십 장이 되므로 잘라서 보여줍니다 */
@@ -329,13 +341,14 @@ footer{color:var(--muted);font-size:12px;text-align:center;margin-top:24px}
   {% endif %}
 
   {% if failed_tests %}
-  <section class="panel" style="margin-bottom:18px">
+  <section class="panel" id="failed-tests" style="margin-bottom:18px">
     <h2>Failed Tests ({{ failed_tests|length }})</h2>
     {% for test in failed_tests %}
     <div class="fail-card">
       <h3><span class="id">{{ test.test_id }}</span>{{ test.name }}</h3>
       <div class="kv">
         <span class="k">Category</span><span>{{ test.category }}</span>
+        {% if test.expected %}<span class="k">기대결과</span><span>{{ test.expected }}</span>{% endif %}
         <span class="k">Browser</span><span>{{ test.browser }}</span>
         <span class="k">Reason</span><span>{{ (test.error.message if test.error else "")|truncate(300) }}</span>
         {% if test.current_url %}<span class="k">Current URL</span><span><a href="{{ test.current_url }}" target="_blank" rel="noopener">{{ test.current_url }}</a></span>{% endif %}
@@ -348,6 +361,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;margin-top:24px}
         <li><span class="badge {{ 'failed' if step.status == 'failed' else 'passed' }}">{{ step.status|upper }}</span>
             <span class="sname">{{ step.index }}. {{ step.name }}</span>
             <span class="num" style="color:var(--muted)">{{ "%.2f"|format(step.duration) }}s</span></li>
+        {% if step.expected %}<li class="sexp">↳ 기대 · {{ step.expected }}</li>{% endif %}
         {% endfor %}
       </ul>
       {% endif %}
@@ -358,7 +372,12 @@ footer{color:var(--muted);font-size:12px;text-align:center;margin-top:24px}
       <div class="thumbs">
         {% for shot in test.screenshot_links %}
         <figure style="margin:0">
-          <img src="{{ shot.url }}" alt="{{ test.test_id }} screenshot" loading="lazy">
+          {# 이 섹션은 화면에서 display:none 이고 인쇄할 때만 나타납니다(위 CSS).
+             display:none 안의 lazy 이미지는 뷰포트에 절대 안 들어와서 브라우저가
+             영영 받지 않을 수 있습니다. 그러면 인쇄본에 남기려던 실패 스크린샷이
+             바로 그 자리에서 비어버립니다. 여기서는 lazy 를 쓰지 않습니다.
+             (펼쳐서 보는 아래 #all-tests 상세 행은 lazy 가 맞습니다) #}
+          <img src="{{ shot.url }}" alt="{{ test.test_id }} screenshot" loading="eager">
           {% if test.screenshot_links|length > 1 %}
           <figcaption style="font-size:11px;color:var(--muted);margin-top:4px">{{ shot.label }}</figcaption>
           {% endif %}
@@ -418,24 +437,60 @@ footer{color:var(--muted);font-size:12px;text-align:center;margin-top:24px}
             <div style="color:var(--muted);font-size:12px;margin-bottom:8px">
               {{ test.nodeid }} &nbsp;·&nbsp; Browser {{ test.browser }}
             </div>
+            {# PASS 만 찍혀 있으면 "무엇이 맞았다는 것인지" 를 알 수 없습니다.
+               명세서의 기대결과를 그대로 보여줍니다. #}
+            {% if test.expected %}
+            <div class="kv" style="margin-bottom:8px">
+              <span class="k">기대결과</span><span>{{ test.expected }}</span>
+            </div>
+            {% endif %}
+            {% if test.is_failure and test.error and test.error.message %}
+            <div class="kv">
+              <span class="k">Reason</span><span style="color:var(--fail)">{{ test.error.message|truncate(300) }}</span>
+            </div>
+            {% endif %}
             {% if test.steps %}
             <ul class="steps">
               {% for step in test.steps %}
               <li><span class="badge {{ 'failed' if step.status == 'failed' else 'passed' }}">{{ step.status|upper }}</span>
                   <span class="sname">{{ step.index }}. {{ step.name }}</span>
                   <span class="num" style="color:var(--muted)">{{ "%.2f"|format(step.duration) }}s</span></li>
-              {% if step.error %}<li style="color:var(--fail);font-size:12px">↳ {{ step.error }}</li>{% endif %}
+              {# 명세서의 「기대결과 / 확인사항」 칸. 비어 있으면 줄을 만들지 않습니다. #}
+              {% if step.expected %}<li class="sexp">↳ 기대 · {{ step.expected }}</li>{% endif %}
+              {# 어느 Step 에서 깨졌는지 알아보는 용도라 앞부분만 보여줍니다.
+                 전문은 바로 아래 traceback 박스에 그대로 있습니다.
+                 (Aria 스냅샷이 붙으면 수천 자가 되어 표가 통째로 밀립니다) #}
+              {% if step.error %}<li style="color:var(--fail);font-size:12px">↳ {{ step.error|truncate(200) }}</li>{% endif %}
               {% endfor %}
             </ul>
             {% else %}
             <div class="empty">기록된 Step 이 없습니다. (utils.steps.test_step 으로 남길 수 있습니다)</div>
             {% endif %}
-            {% if test.current_url %}<div style="margin-top:8px;font-size:12px"><span style="color:var(--muted)">Current URL</span> · {{ test.current_url }}</div>{% endif %}
+            {% if test.current_url %}<div style="margin-top:8px;font-size:12px"><span style="color:var(--muted)">Current URL</span> · <a href="{{ test.current_url }}" target="_blank" rel="noopener">{{ test.current_url }}</a></div>{% endif %}
             {% if test.error and test.error.message %}<pre class="err" style="margin-top:8px">{{ test.error.traceback or test.error.message }}</pre>{% endif %}
+            {% if test.screenshot_links %}
+            <div class="thumbs">
+              {% for shot in test.screenshot_links %}
+              <figure style="margin:0">
+                <img src="{{ shot.url }}" alt="{{ test.test_id }} screenshot" loading="lazy">
+                {% if test.screenshot_links|length > 1 %}
+                <figcaption style="font-size:11px;color:var(--muted);margin-top:4px">{{ shot.label }}</figcaption>
+                {% endif %}
+              </figure>
+              {% endfor %}
+            </div>
+            {% endif %}
             {% if test.artifact_links %}
             <div class="links">
               {% for link in test.artifact_links %}
               <a href="{{ link.url }}"{% if link.kind != 'trace' %} target="_blank"{% endif %}>{{ link.label }}</a>
+              {% endfor %}
+            </div>
+            {% endif %}
+            {% if test.trace_links %}
+            <div style="color:var(--muted);font-size:12px;margin-top:8px">
+              {% for trace in test.trace_links %}
+              Trace 보기: <code>playwright show-trace {{ trace.path }}</code><br>
               {% endfor %}
             </div>
             {% endif %}
