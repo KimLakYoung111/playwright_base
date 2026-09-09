@@ -14,6 +14,7 @@ from typing import Any
 import pytest
 
 from reporting.result_collector import ResultCollector
+from utils import config as config_module
 from utils.config import load_config
 
 #: 파일 전체가 Base 자체 회귀 테스트입니다 (pytest.ini 의 addopts 에서 기본 제외).
@@ -32,6 +33,23 @@ class _FakePaths:
 
     run_id = "20260909_100000"
     root = Path("artifacts") / "20260909_100000"
+
+
+@pytest.fixture(autouse=True)
+def isolated_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    """저장소의 ``config/*.yaml`` 을 읽지 않게 막습니다.
+
+    읽으면 고객사가 ``app_version`` 을 채우는 순간 UNIT304 가 엉뚱한 이유로
+    깨집니다 — 그 파일은 채우라고 있는 자리이고, ``pytest -m base_unit`` 은
+    CLAUDE.md 가 정한 커밋 게이트입니다. ``test_config_report.py`` 가 같은
+    이유로 이미 이 방식을 씁니다.
+
+    ``.env`` 는 ``load_dotenv(override=False)`` 로 들어오므로 delenv 로는
+    못 지웁니다. 빈 문자열로 덮어써야 확실히 비워집니다.
+    """
+    monkeypatch.setattr(config_module, "_read_yaml", lambda path: {})
+    for key in ("APP_VERSION", "SHOW_TRIGGERED_BY", "PROJECT_NAME", "BASE_URL"):
+        monkeypatch.setenv(key, "")
 
 
 def _collector(run_meta: dict[str, Any] | None = None) -> ResultCollector:
@@ -68,11 +86,8 @@ def test_run_meta_is_merged() -> None:
 
 
 @pytest.mark.tc_id("UNIT304")
-def test_meta_keys_exist_even_without_run_meta(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_meta_keys_exist_even_without_run_meta() -> None:
     """메타를 못 모았어도 키는 있고 값이 null 이다. 소비자가 KeyError 를 안 만난다."""
-    # delenv 는 .env 에 값이 있으면 load_dotenv(override=False) 가 재주입해
-    # 무력화된다. 빈 문자열로 지워야 .env 값을 확실히 덮는다.
-    monkeypatch.setenv("APP_VERSION", "")
     run = _collector().to_dict()["run"]
 
     assert run["git"] is None
