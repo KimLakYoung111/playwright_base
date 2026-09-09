@@ -53,7 +53,12 @@ def yaml_config(monkeypatch: pytest.MonkeyPatch):
                     # 셸의 값이 yaml 을 덮어써 테스트가 조용히 통과합니다.
                     "SLOW_MO", "RETRIES", "HEADLESS", "IGNORE_HTTPS_ERRORS",
                     "DEFAULT_TIMEOUT", "NAVIGATION_TIMEOUT", "EXPECT_TIMEOUT",
-                    "VIEWPORT_WIDTH", "VIEWPORT_HEIGHT"):
+                    "VIEWPORT_WIDTH", "VIEWPORT_HEIGHT",
+                    # 문자열 설정. 여기 빠지면 .env 의 값이 yaml 경로를 덮어
+                    # "빈 값이면 기본값" 테스트가 아무것도 검증하지 못한다.
+                    "PROJECT_NAME", "BASE_URL", "API_BASE_URL", "LOCALE", "TIMEZONE",
+                    "TEST_ID_ATTRIBUTE", "BROWSER",
+                    "SCREENSHOT_MODE", "TRACE_MODE", "PAGE_HTML_MODE", "LOG_MODE"):
             monkeypatch.setenv(key, env.get(key, ""))
 
     return _apply
@@ -288,4 +293,121 @@ def test_non_numeric_setting_names_the_nested_key(
     """
     yaml_config(yaml_body)
     with pytest.raises(ValueError, match=expected_name.replace(".", r"\.")):
+        load_config(env="staging")
+
+
+# ---------------------------------------------------------------------------
+# yaml 빈 값 — 문자열 설정
+#
+# 숫자·불리언만 고치고 문자열을 빼먹으면 같은 버그가 그대로 남는다.
+# test_id_attribute 가 None 이면 conftest 가 set_test_id_attribute(None) 을
+# 불러 세션 fixture 단계에서 TypeError 로 죽는다 (UsageError 도 아니다).
+# ---------------------------------------------------------------------------
+
+#: (표시용 이름, 빈 값을 넣은 yaml, RunConfig 속성, 기대 기본값)
+EMPTY_STRING_CASES = [
+    ("project_name", {"project_name": None}, "project_name", "Automation"),
+    ("api_base_url", {"api_base_url": None}, "api_base_url", ""),
+    ("locale", {"locale": None}, "locale", "ko-KR"),
+    ("timezone", {"timezone": None}, "timezone", "Asia/Seoul"),
+    ("test_id_attribute", {"test_id_attribute": None}, "test_id_attribute", "data-testid"),
+    ("browser", {"browser": None}, "browser", "chromium"),
+    ("evidence.screenshot", {"evidence": {"screenshot": None}}, "screenshot_mode", "on-failure"),
+    ("evidence.trace", {"evidence": {"trace": None}}, "trace_mode", "on-failure"),
+]
+
+
+@pytest.mark.tc_id("UNIT221")
+@pytest.mark.parametrize("name, yaml_body, attribute, expected", EMPTY_STRING_CASES,
+                         ids=[case[0] for case in EMPTY_STRING_CASES])
+def test_empty_string_settings_fall_back_to_default(
+    yaml_config, name: str, yaml_body: dict, attribute: str, expected: str
+) -> None:
+    """문자열 설정에 값을 안 주면 기본값이다. None 이 흘러가지 않는다."""
+    yaml_config(yaml_body)
+    assert getattr(load_config(env="staging"), attribute) == expected
+
+
+@pytest.mark.tc_id("UNIT222")
+def test_numeric_project_name_becomes_text(yaml_config) -> None:
+    """``project_name: 2026`` 은 yaml 이 int 로 읽는다. 리포트 제목에 쓰이므로 문자열이어야 한다."""
+    yaml_config({"project_name": 2026})
+    assert load_config(env="staging").project_name == "2026"
+
+
+# ---------------------------------------------------------------------------
+# 불리언 오타
+#
+# 숫자는 오타를 거절하는데 불리언만 조용히 False 로 떨어지면 규칙이 어긋난다.
+# headless: ture -> False 면 화면 없는 CI 에서 이유를 알 수 없이 죽는다.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.tc_id("UNIT223")
+@pytest.mark.parametrize("yaml_body, needle", [
+    ({"headless": "ture"}, "headless"),
+    ({"ignore_https_errors": "예"}, "ignore_https_errors"),
+    ({"report": {"show_triggered_by": "nope"}}, "report.show_triggered_by"),
+])
+def test_unknown_boolean_string_is_rejected(yaml_config, yaml_body: dict, needle: str) -> None:
+    """모르는 문자열은 ValueError. conftest 가 UsageError 로 바꿔 보여준다."""
+    yaml_config(yaml_body)
+    with pytest.raises(ValueError, match=needle):
+        load_config(env="staging")
+
+
+@pytest.mark.tc_id("UNIT224")
+@pytest.mark.parametrize("value, expected", [
+    ("false", False), ("off", False), ("no", False), ("0", False),
+    ("true", True), ("on", True), ("yes", True), ("1", True),
+    (False, False), (True, True),
+])
+def test_boolean_strings_are_understood(yaml_config, value, expected: bool) -> None:
+    """따옴표를 쳐도 환경변수와 같은 규칙으로 읽는다."""
+    yaml_config({"report": {"show_triggered_by": value}})
+    assert load_config(env="staging").show_triggered_by is expected
+
+
+@pytest.mark.tc_id("UNIT225")
+def test_nested_numeric_error_names_the_parent_key(yaml_config) -> None:
+    """중첩 키는 오류 메시지에 부모까지 적는다. keep_days 만 나오면 어느 설정인지 모른다."""
+    yaml_config({"artifacts": {"keep_days": "이주일"}})
+    with pytest.raises(ValueError, match=r"artifacts\.keep_days"):
+        load_config(env="staging")
+
+
+# ---------------------------------------------------------------------------
+# 오류 메시지가 "어느 설정인지" 를 말하는가 — 빠뜨리기 쉬운 자리
+#
+# label 을 붙이는 작업은 한 군데만 빠뜨려도 티가 안 난다. 테스트가 통과하고
+# 동작도 정상이라, 사용자가 오타를 냈을 때에만 드러난다.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.tc_id("UNIT226")
+def test_report_auto_open_error_names_its_section(yaml_config) -> None:
+    """``report.auto_open`` 오타도 섹션을 밝힌다.
+
+    바로 옆 ``show_triggered_by`` 에만 label 이 붙어 있어서, 이 키는
+    "auto_open 는 참/거짓이어야 합니다" 로 끝나 어느 섹션인지 알 수 없었다.
+    """
+    yaml_config({"report": {"auto_open": "ture"}})
+    with pytest.raises(ValueError, match=r"report\.auto_open"):
+        load_config(env="staging")
+
+
+@pytest.mark.tc_id("UNIT227")
+@pytest.mark.parametrize("key, setting", [
+    ("screenshot", "evidence.screenshot"),
+    ("trace", "evidence.trace"),
+    ("page_html", "evidence.page_html"),
+    ("log", "evidence.log"),
+])
+def test_evidence_mode_error_names_the_yaml_key(yaml_config, key: str, setting: str) -> None:
+    """yaml 오타인데 환경변수 이름만 말하면 안 된다.
+
+    ``evidence: {screenshot: alwyas}`` 에 "SCREENSHOT_MODE 값이 올바르지
+    않습니다" 만 뜨면, 사용자는 **설정한 적도 없는 환경변수**를 뒤진다.
+    값이 어느 쪽에서 왔는지 알 수 없으므로 둘 다 보여준다.
+    """
+    yaml_config({"evidence": {key: "alwyas"}})
+    with pytest.raises(ValueError, match=setting.replace(".", r"\.")):
         load_config(env="staging")

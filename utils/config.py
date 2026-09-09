@@ -164,9 +164,9 @@ def _env_int(key: str, default: int) -> int:
 
 #: 참으로 읽는 문자열. 환경변수와 yaml 이 같은 규칙을 쓰도록 한 군데 둡니다.
 TRUE_STRINGS = frozenset({"1", "true", "yes", "y", "on"})
-
-
-#: 거짓으로 읽는 문자열. CI 판별처럼 "값이 있으면 참" 인 곳에서 예외를 만듭니다.
+#: 거짓으로 읽는 문자열. 쓰임이 둘이라 한 군데에 둡니다.
+#:  1) 설정 파싱 — 여기에도 TRUE_STRINGS 에도 없는 값은 **오타로 보고 거절**합니다.
+#:  2) CI 판별 — "값이 있으면 참" 인 곳에서 예외를 만듭니다.
 FALSE_STRINGS = frozenset({"0", "false", "no", "n", "off"})
 
 #: CI 라고 볼 환경변수. 대부분의 CI 가 이 중 하나를 자동으로 넣어줍니다.
@@ -181,7 +181,7 @@ def _env_bool(key: str, default: bool) -> bool:
     value = os.getenv(key)
     if value is None or not value.strip():
         return default
-    return value.strip().lower() in TRUE_STRINGS
+    return _coerce_bool(value, key)
 
 
 def _running_in_ci() -> bool:
@@ -227,19 +227,39 @@ def _yaml_int(cfg: dict, key: str, default: int, label: str | None = None) -> in
         ) from None
 
 
-def _yaml_bool(cfg: dict, key: str, default: bool) -> bool:
+def _yaml_bool(cfg: dict, key: str, default: bool, label: str | None = None) -> bool:
     """yaml 값을 불리언으로.
 
     ``show_triggered_by: "false"`` 처럼 **따옴표를 치면 문자열로 옵니다.**
     ``bool("false")`` 는 True 라, 그대로 두면 개인정보 옵트아웃이 조용히
     무시된 채 실행자 이름이 고객사 리포트에 그대로 실립니다.
-    환경변수와 같은 규칙(:data:`TRUE_STRINGS`)으로 읽습니다.
+    환경변수와 같은 규칙(:data:`TRUE_STRINGS` / :data:`FALSE_STRINGS`)으로 읽습니다.
+
+    **모르는 문자열은 거절합니다.** 조용히 False 로 떨어뜨리면 ``headless: ture``
+    같은 오타가 CI 에서 헤드리스를 끄고, 화면이 없는 머신에서 이유를 알 수 없는
+    실패를 냅니다. 숫자 설정(:func:`_yaml_int`)은 이미 오타를 거절하므로,
+    불리언만 조용히 넘어가면 규칙이 어긋납니다.
     """
     value = (cfg or {}).get(key)
     if _yaml_missing(value):
         return default
+    return _coerce_bool(value, label or key)
+
+
+def _coerce_bool(value: Any, label: str) -> bool:
+    """yaml / 환경변수 공통 불리언 해석. 모르는 문자열이면 ValueError."""
+    if isinstance(value, bool):
+        return value
     if isinstance(value, str):
-        return value.strip().lower() in TRUE_STRINGS
+        text = value.strip().lower()
+        if text in TRUE_STRINGS:
+            return True
+        if text in FALSE_STRINGS:
+            return False
+        raise ValueError(
+            f"{label} 는 참/거짓이어야 합니다. 지금 값: {value!r}. "
+            f"사용 가능: {', '.join(sorted(TRUE_STRINGS | FALSE_STRINGS))}"
+        )
     return bool(value)
 
 
@@ -278,12 +298,18 @@ def _normalize_url(url: str) -> str:
     return url if url.endswith("/") else url + "/"
 
 
-def _evidence_mode(key: str, default: str) -> str:
-    """always / on-failure / never 만 허용합니다. 오타를 조용히 넘기지 않습니다."""
+def _evidence_mode(key: str, default: str, label: str | None = None) -> str:
+    """always / on-failure / never 만 허용합니다. 오타를 조용히 넘기지 않습니다.
+
+    ``label`` 은 yaml 쪽 이름입니다. 값이 yaml 에서 왔는데 오류가 환경변수
+    이름(``SCREENSHOT_MODE``)만 말하면, 사용자는 자기가 설정한 적도 없는 것을
+    뒤지게 됩니다. 어느 쪽에서 왔는지 알 수 없으므로 둘 다 보여줍니다.
+    """
     mode = _env_str(key, str(default)).strip().lower()
     if mode not in EVIDENCE_MODES:
+        where = f"{label} (또는 환경변수 {key})" if label else key
         raise ValueError(
-            f"{key} 값이 올바르지 않습니다: {mode!r}. "
+            f"{where} 값이 올바르지 않습니다: {mode!r}. "
             f"사용 가능: {', '.join(EVIDENCE_MODES)}"
         )
     return mode
@@ -322,7 +348,7 @@ def load_config(
     artifacts_cfg = merged.get("artifacts") or {}
     report_cfg = merged.get("report") or {}
 
-    resolved_browser = (browser or _env_str("BROWSER", merged.get("browser", "chromium"))).lower()
+    resolved_browser = (browser or _env_str("BROWSER", _yaml_str(merged, "browser", "chromium"))).lower()
     if resolved_browser not in SUPPORTED_BROWSERS:
         raise ValueError(
             f"지원하지 않는 Browser 입니다: {resolved_browser!r}. "
@@ -335,13 +361,14 @@ def load_config(
 
     # 리포트 자동 열기. yaml 이 켜져 있어도 CI 면 기본값을 꺼둡니다.
     # OPEN_REPORT 를 직접 준 경우에는 CI 여부와 무관하게 그 값을 씁니다.
-    open_report_default = _yaml_bool(report_cfg, "auto_open", True) and not _running_in_ci()
+    open_report_default = (_yaml_bool(report_cfg, "auto_open", True, "report.auto_open")
+                           and not _running_in_ci())
 
     return RunConfig(
-        project_name=_env_str("PROJECT_NAME", merged.get("project_name", "Automation")),
+        project_name=_env_str("PROJECT_NAME", _yaml_str(merged, "project_name", "Automation")),
         env=env,
-        base_url=_normalize_url(base_url or _env_str("BASE_URL", merged.get("base_url", ""))),
-        api_base_url=_env_str("API_BASE_URL", merged.get("api_base_url", "")),
+        base_url=_normalize_url(base_url or _env_str("BASE_URL", _yaml_str(merged, "base_url", ""))),
+        api_base_url=_env_str("API_BASE_URL", _yaml_str(merged, "api_base_url", "")),
         browser=resolved_browser,
         headless=resolved_headless,
         slow_mo=_env_int("SLOW_MO", _yaml_int(merged, "slow_mo", 0)),
@@ -355,26 +382,37 @@ def load_config(
             "VIEWPORT_WIDTH", _yaml_int(viewport, "width", 1920, "viewport.width")),
         viewport_height=_env_int(
             "VIEWPORT_HEIGHT", _yaml_int(viewport, "height", 1080, "viewport.height")),
-        locale=_env_str("LOCALE", merged.get("locale", "ko-KR")),
-        timezone=_env_str("TIMEZONE", merged.get("timezone", "Asia/Seoul")),
+        locale=_env_str("LOCALE", _yaml_str(merged, "locale", "ko-KR")),
+        timezone=_env_str("TIMEZONE", _yaml_str(merged, "timezone", "Asia/Seoul")),
         ignore_https_errors=_env_bool(
             "IGNORE_HTTPS_ERRORS", _yaml_bool(merged, "ignore_https_errors", False)
         ),
         test_id_attribute=_env_str("TEST_ID_ATTRIBUTE",
-                                   merged.get("test_id_attribute", "data-testid")),
+                                   _yaml_str(merged, "test_id_attribute", "data-testid")),
         app_version=_env_str("APP_VERSION", _yaml_str(merged, "app_version", "")),
         show_triggered_by=_env_bool("SHOW_TRIGGERED_BY",
-                                    _yaml_bool(report_cfg, "show_triggered_by", True)),
+                                    _yaml_bool(report_cfg, "show_triggered_by", True,
+                                               "report.show_triggered_by")),
         open_report=_env_bool("OPEN_REPORT", open_report_default),
         retries=_env_int("RETRIES", _yaml_int(merged, "retries", 0)),
         artifacts_keep_days=_env_int("ARTIFACTS_KEEP_DAYS",
-                                     _yaml_int(artifacts_cfg, "keep_days", 14)),
+                                     _yaml_int(artifacts_cfg, "keep_days", 14,
+                                               "artifacts.keep_days")),
         artifacts_keep_min_runs=_env_int("ARTIFACTS_KEEP_MIN_RUNS",
-                                         _yaml_int(artifacts_cfg, "keep_min_runs", 5)),
-        screenshot_mode=_evidence_mode("SCREENSHOT_MODE", evidence.get("screenshot", "on-failure")),
-        trace_mode=_evidence_mode("TRACE_MODE", evidence.get("trace", "on-failure")),
-        page_html_mode=_evidence_mode("PAGE_HTML_MODE", evidence.get("page_html", "on-failure")),
-        log_mode=_evidence_mode("LOG_MODE", evidence.get("log", "on-failure")),
+                                         _yaml_int(artifacts_cfg, "keep_min_runs", 5,
+                                                   "artifacts.keep_min_runs")),
+        screenshot_mode=_evidence_mode("SCREENSHOT_MODE",
+                                       _yaml_str(evidence, "screenshot", "on-failure"),
+                                       "evidence.screenshot"),
+        trace_mode=_evidence_mode("TRACE_MODE",
+                                  _yaml_str(evidence, "trace", "on-failure"),
+                                  "evidence.trace"),
+        page_html_mode=_evidence_mode("PAGE_HTML_MODE",
+                                      _yaml_str(evidence, "page_html", "on-failure"),
+                                      "evidence.page_html"),
+        log_mode=_evidence_mode("LOG_MODE",
+                                _yaml_str(evidence, "log", "on-failure"),
+                                "evidence.log"),
         accounts=_build_accounts(merged.get("accounts", {})),
         raw=merged,
     )
