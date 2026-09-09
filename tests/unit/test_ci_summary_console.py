@@ -94,3 +94,15 @@ def test_never_raises_for_any_stream_encoding(encoding: str | None) -> None:
     마지막 값은 인코딩 이름 자체가 틀린 경우(LookupError)다.
     """
     assert encode_safe(to_markdown(make_result(1)), encoding)
+
+
+@pytest.mark.tc_id("UNIT606")
+def test_unknown_encoding_does_not_destroy_korean() -> None:
+    """인코딩 이름을 모를 때 ascii 로 떨어뜨리면 한글이 전멸한다.
+
+    "예외만 안 나면 된다" 로 두면 프로젝트명·Category·오류 메시지가 통째로
+    ``?`` 가 되어 요약이 아무 정보도 주지 않는다. 인코딩을 못 알아본 것은
+    스트림 문제이지 **내용을 버려도 된다는 뜻이 아니다.**
+    """
+    safe = encode_safe(to_markdown(make_result()), "없는인코딩")
+    assert "예제 자동화" in safe

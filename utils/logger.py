@@ -41,39 +41,63 @@ def _mask_url_credentials(match: re.Match) -> str:
     return f"{scheme}{user}:{MASK}@"
 
 
-#: 비밀을 가리키는 키 이름. key=value 형태와 ``--key value`` 형태가 함께 씁니다.
+#: 스킴을 남겨도 되는 키. "어느 인증 방식이었나" 는 진단에 쓰이고 비밀이 아닙니다.
+_AUTH_HEADER_KEYS = r"authorization|auth[_-]?token"
+
+#: 그 밖의 비밀 키. 여기서는 값이 스킴 이름처럼 보여도 **그냥 값**입니다.
+_PLAIN_SECRET_KEYS = r"password|passwd|pwd|token|secret|api[_-]?key"
+
+#: 비밀을 가리키는 키 이름. ``--key value`` 형태가 이 합집합을 씁니다.
 #:
 #: **흔한 낱말을 넣지 마세요.** ``auth`` 하나를 넣었더니 ``GET /auth: 200 OK`` 가
 #: ``GET /auth: *** OK`` 가 되고 ``--auth-file conf.yaml`` 의 파일명까지 사라졌습니다.
 #: 가려서 얻는 것보다 로그를 읽을 수 없게 되는 손해가 큽니다.
-_SECRET_KEYS = (r"password|passwd|pwd|token|secret|api[_-]?key|"
-                r"authorization|auth[_-]?token")
+_SECRET_KEYS = _AUTH_HEADER_KEYS + "|" + _PLAIN_SECRET_KEYS
 
-#: HTTP 인증 스킴. 스킴 이름은 비밀이 아니므로 남기고 뒤의 자격증명만 가립니다.
+#: HTTP 인증 스킴. **셋 다 평범한 영어 낱말이기도 합니다** — 뒤에 오는 것이
+#: 자격증명인지 그냥 다음 단어인지 문법으로는 구분되지 않습니다.
 _AUTH_SCHEMES = r"bearer|basic|digest"
+
+#: 자격증명처럼 생겼는지. 실제 토큰은 base64 · hex · JWT 라 숫자나
+#: ``= / + _ - .`` 를 포함합니다. 영어 낱말(``authentication``, ``fallback``)과
+#: 갈리는 지점이 여기입니다. 키가 없는 ``Bearer <값>`` 형태에만 씁니다 —
+#: 키가 붙어 있으면 키가 이미 비밀임을 말해주므로 모양을 따질 이유가 없습니다.
+_CREDENTIAL_SHAPE = r"(?=[A-Za-z0-9._\-+/=]*[0-9._\-+/=])"
 
 #: 값 자체를 몰라도 잡아내는 패턴. (정규식, 치환식) 쌍입니다.
 #: 치환식은 문자열도 함수도 됩니다 (``re.sub`` 규칙 그대로).
 #:
-#: **스킴은 key=value 패턴 *안에서* 처리합니다.** 예전에는 값이 스킴 이름이면
-#: key=value 가 비켜서고 뒤의 스킴 패턴에 넘기게 했는데, 스킴 패턴은 "공백 +
-#: 8자 이상 토큰" 을 요구하므로 ``password=basic`` 이나
-#: ``Authorization: Bearer abc123`` 은 **아무도 안 잡아** 원문이 그대로 나갔습니다.
-#: 한 패턴이 스킴까지 함께 보면 이 구멍이 생길 수 없습니다.
+#: **스킴은 key=value 패턴 *안에서* 처리합니다.** 스킴을 별도 패턴에 넘기면,
+#: 그 패턴이 요구하는 "공백 + 8자 이상 토큰" 이 없는 경우를 아무도 안 잡아
+#: ``password=basic`` 이 원문 그대로 나갔습니다.
+#:
+#: **키 종류로 두 갈래입니다.** ``key=SCHEME word`` 는 "스킴 + 자격증명" 인지
+#: "값 + 다음 낱말" 인지 구분되지 않습니다. Authorization 계열만 스킴을 남기고,
+#: 나머지는 스킴처럼 보이는 것까지 값으로 보고 가립니다. 한쪽으로 통일하면
+#: 반드시 한쪽이 샙니다 (숫자 없는 토큰이 남거나, 값인 ``basic`` 이 남습니다).
 _SECRET_PATTERNS = [
-    # key=value / "key": "value" / {'key': 'value'}
-    #  값 앞에 인증 스킴이 붙어 있으면(``Authorization: Bearer <토큰>``) 스킴은
-    #  남기고 뒤만 가립니다. 어느 인증 방식이었는지는 비밀이 아니고 디버깅에 씁니다.
-    (re.compile(r"(?i)\b(" + _SECRET_KEYS + r")"
-                r"(['\"]?\s*[:=]\s*['\"]?)"
+    # 1) Authorization 계열 — 스킴은 남기고 뒤만 가립니다.
+    #    모양(_CREDENTIAL_SHAPE)을 따지지 않습니다. 여기에 모양 조건을 걸면
+    #    숫자 없는 토큰에서 스킴이 값으로 오인돼 진짜 토큰이 그대로 남습니다.
+    (re.compile(r"(?i)\b(" + _AUTH_HEADER_KEYS + r")"
+                r"(['\"]?[ \t]*[:=][ \t]*['\"]?)"
                 r"((?:" + _AUTH_SCHEMES + r")[ \t]+)?"
                 r"([^\s'\",;}]+)"),
      r"\1\2\3" + MASK),
-    # 키 없이 헤더 값만 있는 경우 (``Bearer <토큰>``).
-    #  Base64 는 +, /, = 를 쓰므로 문자 집합에 넣습니다. 길이 하한은 "basic auth"
-    #  같은 평범한 문장을 건드리지 않기 위한 것입니다 — 키가 붙은 형태는 위
-    #  패턴이 길이와 무관하게 이미 잡습니다.
-    (re.compile(r"(?i)\b(" + _AUTH_SCHEMES + r")[ \t]+([A-Za-z0-9._\-+/=]{8,})"),
+    # 2) 그 밖의 비밀 키 — 스킴처럼 보이는 것도 값이므로 통째로 가립니다.
+    #    ``password=basic auth`` 에서 진짜 값인 basic 이 살아남지 않게 합니다.
+    (re.compile(r"(?i)\b(" + _PLAIN_SECRET_KEYS + r")"
+                r"(['\"]?[ \t]*[:=][ \t]*['\"]?)"
+                r"(?:(?:" + _AUTH_SCHEMES + r")[ \t]+)?"
+                r"[^\s'\",;}]+"),
+     r"\1\2" + MASK),
+    # 3) 키 없이 헤더 값만 있는 경우 (``Bearer <토큰>``).
+    #    Base64 는 +, /, = 를 쓰므로 문자 집합에 넣습니다. 길이 하한과 모양
+    #    조건이 함께 필요합니다 — 길이만 보면 "Basic authentication required" 의
+    #    authentication 이 자격증명으로 잡혀, 401 실패 메시지의 진단 단어가
+    #    고객사 리포트에서 사라집니다.
+    (re.compile(r"(?i)\b(" + _AUTH_SCHEMES + r")[ \t]+"
+                + _CREDENTIAL_SHAPE + r"([A-Za-z0-9._\-+/=]{8,})"),
      r"\1 " + MASK),
     # 공백으로 값을 넘기는 명령행 플래그 (--password hunter2).
     #  ``--password=hunter2`` 는 위 key=value 가 잡지만 공백 형태는 못 잡습니다.

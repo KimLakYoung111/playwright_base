@@ -96,8 +96,11 @@ def encode_safe(text: str, encoding: str | None) -> str:
         return text
     except UnicodeEncodeError:
         pass
-    except LookupError:               # 인코딩 이름 자체를 모를 때
-        encoding = "ascii"
+    except LookupError:
+        # 인코딩 이름 자체를 모를 때. ascii 로 떨어뜨리면 프로젝트명·Category·
+        # 오류 메시지의 한글이 통째로 ? 가 되어 요약이 아무 정보도 못 줍니다.
+        # 인코딩을 못 알아본 것은 스트림 문제이지 내용을 버려도 된다는 뜻이 아닙니다.
+        encoding = "utf-8"
     for icon, plain in ICON_FALLBACKS.items():
         text = text.replace(icon, plain)
     return text.encode(encoding, errors="replace").decode(encoding, errors="replace")

@@ -253,3 +253,93 @@ def test_flag_masking_does_not_eat_the_next_flag(masker, text: str) -> None:
     "가리는 쪽으로 실패" 는 **값**에 대한 원칙이지 플래그에 대한 것이 아니다.
     """
     assert masker.mask(text) == text
+
+
+# ---------------------------------------------------------------------------
+# 스킴 이름은 영어 낱말이기도 하다
+#
+# basic / digest 를 스킴 목록에 넣으면 "Basic authentication required" 같은
+# 평범한 문장이 자격증명으로 잡힌다. mask_secrets() 는 실패 메시지와
+# traceback 에도 걸리므로, 401 관련 단정 실패의 진단 단어가 고객사 리포트에서
+# 사라진다. 가려서 얻는 것이 없고 잃기만 하는 자리다.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.tc_id("UNIT716")
+@pytest.mark.parametrize("text", [
+    "HTTP 401: Basic authentication required",
+    'assert "Basic authentication failed" in body',
+    "basic auth with digest fallback enabled",
+    "Digest challenge received: stale=true",
+])
+def test_scheme_words_in_prose_are_left_alone(masker, text: str) -> None:
+    """스킴 뒤에 오는 것이 평범한 영어 낱말이면 자격증명이 아니다."""
+    assert masker.mask(text) == text
+
+
+@pytest.mark.tc_id("UNIT717")
+@pytest.mark.parametrize("text, secret", [
+    ("Bearer abcdefgh12345", "abcdefgh12345"),
+    ("Basic dXNlcjpwYXNzd29yZA==", "dXNlcjpwYXNzd29yZA=="),
+    ("Digest cnNwYXV0aD1hYmM=", "cnNwYXV0aD1hYmM="),
+])
+def test_real_credentials_after_a_scheme_are_still_masked(masker, text: str,
+                                                          secret: str) -> None:
+    """진짜 자격증명은 그대로 가린다. 위 예외가 구멍이 되면 안 된다.
+
+    실제 토큰은 base64·hex·JWT 라 숫자나 ``= / + _ - .`` 를 포함한다.
+    영어 낱말과 갈리는 지점이 거기다.
+    """
+    masked = masker.mask(text)
+    assert secret not in masked
+    assert MASK in masked
+
+
+# ---------------------------------------------------------------------------
+# 값이 우연히 스킴 이름일 때
+#
+# key=SCHEME word 는 "스킴 + 자격증명" 인지 "값 + 다음 낱말" 인지 문법으로
+# 구분되지 않는다. Authorization 계열만 스킴을 남기고, 나머지 비밀 키는
+# 스킴처럼 보이는 것까지 값으로 보고 가린다.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.tc_id("UNIT718")
+@pytest.mark.parametrize("text, leaked", [
+    ("password=basic auth", "basic"),
+    ("token=digest mode", "digest"),
+    ("pwd=bearer x", "bearer"),
+])
+def test_scheme_shaped_value_does_not_survive(masker, text: str, leaked: str) -> None:
+    """password=basic auth 에서 진짜 값인 'basic' 이 남으면 안 된다.
+
+    스킴 통과를 무조건 허용하면 스킴 자리로 오인된 **값**이 원문으로 남는다.
+    """
+    masked = masker.mask(text)
+    assert MASK in masked
+    assert leaked not in masked
+
+
+@pytest.mark.tc_id("UNIT719")
+def test_authorization_keeps_scheme_even_without_digits(masker) -> None:
+    """Authorization 계열은 토큰 모양을 따지지 않고 가린다.
+
+    "자격증명처럼 생겼을 때만 가린다" 를 여기까지 적용하면, 숫자 없는 토큰에서
+    스킴이 값으로 오인돼 **진짜 토큰이 그대로 남는다**. 키가 이미 비밀임을
+    말해주므로 모양을 따질 이유가 없다.
+    """
+    masked = masker.mask("Authorization: Bearer abcdefgh")
+    assert "abcdefgh" not in masked
+    assert MASK in masked
+
+
+@pytest.mark.tc_id("UNIT720")
+@pytest.mark.parametrize("text", [
+    "token:\nnextline value",
+    "password:\nsecond-line token",
+])
+def test_key_value_separator_never_crosses_a_newline(masker, text: str) -> None:
+    """key=value 구분자도 줄바꿈을 넘으면 안 된다.
+
+    플래그 패턴(UNIT714)만 고치고 형제 패턴을 두면 같은 버그가 그대로 남는다.
+    비밀 키 이름으로 끝나는 줄이 **다음 줄 첫 토큰**을 지운다.
+    """
+    assert masker.mask(text) == text
