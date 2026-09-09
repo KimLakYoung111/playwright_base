@@ -84,6 +84,7 @@ Locator 는 추측하지 말고 **Playwright MCP 로 실제 화면에서 확보*
 conftest.py                 utils/
 reporting/                  pages/base_page.py
 api/api_client.py           components/base_component.py
+tests/unit/
 ```
 
 여기를 고쳐야만 문제가 풀린다고 판단되면 **고치지 말고 먼저 사용자에게 이유를
