@@ -279,15 +279,55 @@ def test_scheme_words_in_prose_are_left_alone(masker, text: str) -> None:
 @pytest.mark.tc_id("UNIT717")
 @pytest.mark.parametrize("text, secret", [
     ("Bearer abcdefgh12345", "abcdefgh12345"),
-    ("Basic dXNlcjpwYXNzd29yZA==", "dXNlcjpwYXNzd29yZA=="),
-    ("Digest cnNwYXV0aD1hYmM=", "cnNwYXV0aD1hYmM="),
+    ("Bearer abcdefghijklmnop", "abcdefghijklmnop"),     # 영문자만 있는 토큰
+    ("('Bearer SessionTokenValue',)", "SessionTokenValue"),
 ])
-def test_real_credentials_after_a_scheme_are_still_masked(masker, text: str,
-                                                          secret: str) -> None:
-    """진짜 자격증명은 그대로 가린다. 위 예외가 구멍이 되면 안 된다.
+def test_keyless_bearer_credentials_are_masked(masker, text: str, secret: str) -> None:
+    """키 없는 ``Bearer <토큰>`` 은 **모양을 따지지 않고** 가린다.
 
-    실제 토큰은 base64·hex·JWT 라 숫자나 ``= / + _ - .`` 를 포함한다.
-    영어 낱말과 갈리는 지점이 거기다.
+    "자격증명처럼 생겼을 때만" 이라는 조건을 걸면 영문자만으로 된 불투명 토큰이
+    그대로 나간다. ``bearer`` 는 8자 이상 토큰 앞에 오는 평범한 영어 문장이
+    사실상 없어서 조건 없이 가려도 안전하다 — ``basic`` / ``digest`` 와 다른
+    점이 이것이고, 그래서 이 패턴은 ``bearer`` 만 본다(UNIT721 참고).
+    """
+    masked = masker.mask(text)
+    assert secret not in masked
+    assert MASK in masked
+
+
+@pytest.mark.tc_id("UNIT721")
+@pytest.mark.parametrize("text", [
+    "  raise ValueError('Basic authentication.')",
+    "expected Digest challenge.",
+    "Retry after Basic auth-failure.",
+    "Basic auth/digest negotiation.",
+    "Digest qop=auth-int not supported",
+])
+def test_basic_and_digest_never_match_without_a_key(masker, text: str) -> None:
+    """``basic`` / ``digest`` 는 키 없이는 절대 잡지 않는다.
+
+    둘은 평범한 영어 낱말이라 뒤에 오는 것이 자격증명인지 다음 단어인지
+    구분할 방법이 없다. "자격증명 모양" 을 문자 종류로 판정해 봤지만,
+    문장부호 · 하이픈 · 슬래시가 전부 통과해 문장이 그대로 뭉개졌다.
+
+    키가 붙은 형태(``Authorization: Basic <값>``)는 키가 이미 비밀임을
+    말해주므로 UNIT706 이 가린다. 키 없는 형태는 포기한다 — 가려서 얻는 것보다
+    401 진단 메시지를 잃는 손해가 크다.
+    """
+    assert masker.mask(text) == text
+
+
+@pytest.mark.tc_id("UNIT722")
+@pytest.mark.parametrize("text, secret", [
+    ("Authorization: Basic dXNlcjpwYXNzd29yZA==", "dXNlcjpwYXNzd29yZA=="),
+    ("Authorization: Digest cnNwYXV0aD1hYmM=", "cnNwYXV0aD1hYmM="),
+    ("{'Authorization': 'Basic dXNlcjpwdw=='}", "dXNlcjpwdw=="),
+])
+def test_keyed_basic_and_digest_are_still_masked(masker, text: str, secret: str) -> None:
+    """범위를 좁힌 것이 구멍이 되지 않았는지 못 박는다.
+
+    UNIT721 이 키 없는 basic/digest 를 포기했으므로, 키가 붙은 형태만은
+    반드시 가려야 한다. 실제 로그에 나오는 것은 거의 이쪽이다.
     """
     masked = masker.mask(text)
     assert secret not in masked

@@ -56,13 +56,22 @@ _SECRET_KEYS = _AUTH_HEADER_KEYS + "|" + _PLAIN_SECRET_KEYS
 
 #: HTTP 인증 스킴. **셋 다 평범한 영어 낱말이기도 합니다** — 뒤에 오는 것이
 #: 자격증명인지 그냥 다음 단어인지 문법으로는 구분되지 않습니다.
+#: 키가 붙은 형태에서만 씁니다. 키가 이미 "여기부터 비밀" 이라고 말해주기 때문입니다.
 _AUTH_SCHEMES = r"bearer|basic|digest"
 
-#: 자격증명처럼 생겼는지. 실제 토큰은 base64 · hex · JWT 라 숫자나
-#: ``= / + _ - .`` 를 포함합니다. 영어 낱말(``authentication``, ``fallback``)과
-#: 갈리는 지점이 여기입니다. 키가 없는 ``Bearer <값>`` 형태에만 씁니다 —
-#: 키가 붙어 있으면 키가 이미 비밀임을 말해주므로 모양을 따질 이유가 없습니다.
-_CREDENTIAL_SHAPE = r"(?=[A-Za-z0-9._\-+/=]*[0-9._\-+/=])"
+#: 키 없이도 가리는 스킴. ``bearer`` 하나뿐입니다.
+#:
+#: ``basic`` / ``digest`` 는 키가 없으면 포기합니다. "자격증명처럼 생겼나" 를
+#: 문자 종류로 판정해 봤지만 문장부호 · 하이픈 · 슬래시가 전부 통과했습니다::
+#:
+#:     raise ValueError('Basic authentication.')  ->  ...('Basic ***')
+#:     Digest qop=auth-int not supported          ->  Digest *** not supported
+#:
+#: 조건을 조이면 이번엔 영문자만으로 된 불투명 토큰이 그대로 나갔습니다.
+#: 같은 구성물의 앞뒤라 한쪽을 막으면 반드시 다른 쪽이 열립니다.
+#: ``bearer`` 는 8자 이상 토큰 앞에 오는 평범한 문장이 사실상 없어서 조건 없이
+#: 가려도 안전합니다. 401 진단 메시지를 잃는 손해가 더 큽니다.
+_KEYLESS_SCHEMES = r"bearer"
 
 #: 값 자체를 몰라도 잡아내는 패턴. (정규식, 치환식) 쌍입니다.
 #: 치환식은 문자열도 함수도 됩니다 (``re.sub`` 규칙 그대로).
@@ -92,12 +101,11 @@ _SECRET_PATTERNS = [
                 r"[^\s'\",;}]+"),
      r"\1\2" + MASK),
     # 3) 키 없이 헤더 값만 있는 경우 (``Bearer <토큰>``).
-    #    Base64 는 +, /, = 를 쓰므로 문자 집합에 넣습니다. 길이 하한과 모양
-    #    조건이 함께 필요합니다 — 길이만 보면 "Basic authentication required" 의
-    #    authentication 이 자격증명으로 잡혀, 401 실패 메시지의 진단 단어가
-    #    고객사 리포트에서 사라집니다.
-    (re.compile(r"(?i)\b(" + _AUTH_SCHEMES + r")[ \t]+"
-                + _CREDENTIAL_SHAPE + r"([A-Za-z0-9._\-+/=]{8,})"),
+    #    Base64 는 +, /, = 를 쓰므로 문자 집합에 넣습니다. 토큰 모양은 따지지
+    #    않습니다 — 따지면 영문자만으로 된 불투명 토큰이 그대로 나갑니다.
+    #    대신 _KEYLESS_SCHEMES 를 bearer 로 좁혀 평범한 문장을 건드리지 않습니다.
+    (re.compile(r"(?i)\b(" + _KEYLESS_SCHEMES + r")[ \t]+"
+                r"([A-Za-z0-9._\-+/=]{8,})"),
      r"\1 " + MASK),
     # 공백으로 값을 넘기는 명령행 플래그 (--password hunter2).
     #  ``--password=hunter2`` 는 위 key=value 가 잡지만 공백 형태는 못 잡습니다.
