@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from contextvars import ContextVar
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 
 import pytest
 
@@ -54,6 +54,12 @@ class TestMeta:
     steps: list[dict[str, Any]] = field(default_factory=list)
     artifacts: dict[str, str] = field(default_factory=dict)
     current_url: str | None = None
+    #: 테스트가 쓴 데이터 (대상 건 번호 등). 이름 → 값. ``utils.steps.record_data`` 로 남깁니다.
+    data: dict[str, str] = field(default_factory=dict)
+    #: 테스트가 대상 사이트에 남긴 변경. key → 설명. 되돌리면 지웁니다 (``utils.steps.record_change``).
+    changes: dict[str, str] = field(default_factory=dict)
+    #: Step 이 실패한 순간 부를 함수 (conftest 의 page fixture 가 걸어 두는 스크린샷). 리포트에는 싣지 않습니다.
+    on_step_failure: Callable[[], None] | None = None
 
     @property
     def slug(self) -> str:

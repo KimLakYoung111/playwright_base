@@ -254,13 +254,21 @@ start "$(Get-Content artifacts/latest_run.txt)\report\report.html"
 
 ### Custom Report 에 있는 것
 
-- 상단 Dashboard — 프로젝트 / 환경 / Browser / 대상 URL / 시작·종료 / 전체 수행시간
-- Total · Passed · Failed · Skipped, Pass Rate 진행바 + 도넛 차트
-- **Category 별 결과** (업무 영역별 통계)
-- **Failed Tests** 영역 — 실패 사유, 실패 시점 URL, Screenshot 썸네일(클릭하면 확대), Trace / HTML / Log 링크
-- 전체 테스트 표 — 필터(All/Passed/Failed/Skipped) + 검색, 행을 누르면 **Step 목록**이 펼쳐짐
+- 상단 — 프로젝트 / 환경 / 브라우저 / 대상 URL / 시작·종료 / 전체 수행시간
+- 전체 · 성공 · 실패 · 건너뜀, 성공률 진행바 + 도넛 차트
+- **분류별 결과** (업무 영역별 통계)
+- 전체 테스트 표 — 필터(전체/성공/실패/건너뜀) + 검색, 행을 누르면 **Step 목록**이 펼쳐짐.
+  실패한 TC 는 **실패 내용** 한 줄(유형 · 몇 단계 · 기대/실제), **응답 없는 API**(요청한 단계 · 기다린 시간 · 실패 사유),
+  마지막 URL, Screenshot 썸네일(클릭하면 확대), Trace / HTML / Log 링크
 - **기대결과** — 행을 펼치면 TC 대표 기대결과 한 줄, Step 마다 그 단계의 기대결과
   (`PASS` 만 보면 무엇이 맞았다는 것인지 알 수 없어서 넣습니다. 아래 참고)
+- **확인값 · 사용 데이터 · 남긴 변경** — Step 아래 '확인' 줄에 실제로 본 값, TC 에 쓴 데이터(대상 건 번호 등),
+  대상 사이트에 남긴 변경. 실패한 TC 에 남은 변경은 '정리가 필요할 수 있는 변경' 으로 표시
+  (`utils.steps` 의 `record_actual` / `record_data` / `record_change`)
+- **Step 별 API 응답 시간** — Step 아래 접힌 표. 대상은 `config/default.yaml` 의 `report.api_paths`
+  (기본 `/api/`, `/rest/`) 가 경로에 들어 있는 XHR·fetch 요청. 대상 사이트에 맞게 바꾸고, `[]` 면 기록하지 않음
+- 실패하면 Screenshot 은 **실패한 탭 한 장**을 **Step 이 실패한 순간**에 찍음 (새 탭이 열린 흐름에서도)
+- 인쇄(PDF) — 전체 테스트 표 대신 **TC 목록 한 장**과 실패한 테스트 카드
 
 무거운 UI 라이브러리를 쓰지 않고 HTML/CSS/JS 만으로 만들어서 파일 하나만 메일로 보내도 열립니다.
 

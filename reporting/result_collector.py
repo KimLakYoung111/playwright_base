@@ -15,7 +15,7 @@ from typing import Any
 
 from utils.logger import mask_secrets
 
-SCHEMA_VERSION = "1.2"
+SCHEMA_VERSION = "1.5"
 
 #: 상태값 (result.json 의 tests[].status)
 PASSED, FAILED, SKIPPED, ERROR = "passed", "failed", "skipped", "error"
@@ -98,6 +98,9 @@ class ResultCollector:
                 "browser": self.config.browser,
                 "steps": [],
                 "artifacts": {},
+                # schema 1.4: 테스트가 쓴 데이터, 대상 사이트에 남긴 변경 (utils.steps). 없으면 빈 dict.
+                "data": {},
+                "changes": {},
             }
         return self._records[nodeid]
 
@@ -112,6 +115,8 @@ class ResultCollector:
             record["error"] = None
             record["steps"] = []
             record["artifacts"] = {}
+            record["data"] = {}
+            record["changes"] = {}
             record["duration"] = 0.0
             return
 
@@ -169,15 +174,19 @@ class ResultCollector:
             if key != "meta" or not isinstance(value, dict):
                 continue
             for field in ("test_id", "name", "category", "expected", "markers", "steps",
-                          "artifacts", "current_url", "browser"):
+                          "artifacts", "current_url", "browser", "data", "changes"):
                 if value.get(field) not in (None, "", [], {}):
                     record[field] = value[field]
 
-        # Step 의 에러 문자열과 URL 에도 민감정보가 섞일 수 있습니다.
+        # Step 의 에러 문자열과 URL, 테스트가 남긴 값에도 민감정보가 섞일 수 있습니다.
         record["current_url"] = mask_secrets(record.get("current_url") or "") or None
         for step in record.get("steps") or []:
             if step.get("error"):
                 step["error"] = mask_secrets(step["error"])
+            if step.get("actual"):
+                step["actual"] = [mask_secrets(text) for text in step["actual"]]
+        for field in ("data", "changes"):
+            record[field] = {key: mask_secrets(text) for key, text in (record.get(field) or {}).items()}
 
     # ------------------------------------------------------------------
     # 집계

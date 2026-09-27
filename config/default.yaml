@@ -23,6 +23,11 @@ report:
   #  한 번만 끄려면 pytest --no-open-report.
   auto_open: true
 
+  # 응답 시간을 리포트 Step 아래 표로 실을 업무 API 의 경로 조각.
+  #  요청 경로에 하나라도 들어 있으면 기록합니다 (XHR·fetch 만. 이미지·JS·폰트는 제외).
+  #  대상 사이트의 API 경로에 맞게 바꾸세요. [] 로 두면 기록하지 않습니다.
+  api_paths: ["/api/", "/rest/"]
+
 browser: chromium          # chromium | firefox | webkit
 headless: true
 slow_mo: 0                 # ms. 디버깅 시 200~500 정도로 올려서 확인
@@ -35,6 +40,13 @@ timeouts:
 viewport:
   width: 1920
   height: 1080
+
+# --headed 실행의 창 처리.
+#  fixed     : 위 viewport 로 고정합니다 (기본). headless 와 같은 화면이라 Locator 가 똑같이 동작합니다.
+#  maximized : 뷰포트를 고정하지 않고 창을 최대화합니다. 모니터가 viewport 보다 작을 때 새 탭이 열릴
+#              때마다 창이 움직이는 사이트용입니다. 모니터가 작으면 headless 와 DOM 이 달라질 수 있습니다.
+#              --start-maximized 는 Chromium 옵션이라 firefox/webkit 은 최대화되지 않습니다.
+headed_window: fixed
 
 locale: ko-KR
 timezone: Asia/Seoul

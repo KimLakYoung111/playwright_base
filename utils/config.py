@@ -26,6 +26,7 @@ CONFIG_DIR = PROJECT_ROOT / "config"
 SUPPORTED_ENVS = ("dev", "staging", "prod")
 SUPPORTED_BROWSERS = ("chromium", "firefox", "webkit")
 EVIDENCE_MODES = ("always", "on-failure", "never")
+HEADED_WINDOWS = ("fixed", "maximized")
 
 
 @dataclass(frozen=True)
@@ -59,6 +60,9 @@ class RunConfig:
 
     viewport_width: int = 1920
     viewport_height: int = 1080
+    #: --headed 실행의 창 처리. fixed = config 뷰포트 고정 (headless 와 같은 화면),
+    #: maximized = 뷰포트를 고정하지 않고 창을 최대화 (고정하면 새 탭마다 창이 움직이는 사이트용).
+    headed_window: str = "fixed"
 
     locale: str = "ko-KR"
     timezone: str = "Asia/Seoul"
@@ -74,6 +78,9 @@ class RunConfig:
     #: 실행이 끝나면 report.html 을 기본 브라우저로 열지.
     #: CI 로 보이는 환경에서는 기본값이 False 가 됩니다 (:func:`_running_in_ci`).
     open_report: bool = True
+    #: 응답 시간을 리포트에 실을 업무 API 의 경로 조각. 요청 경로에 하나라도 들어 있으면 기록합니다.
+    #: 빈 튜플이면 기록하지 않습니다.
+    api_paths: tuple[str, ...] = ("/api/", "/rest/")
 
     retries: int = 0
 
@@ -278,6 +285,22 @@ def _yaml_str(cfg: dict, key: str, default: str) -> str:
     return str(value)
 
 
+def _yaml_str_list(cfg: dict, key: str, default: tuple[str, ...], label: str) -> tuple[str, ...]:
+    """yaml 목록을 문자열 튜플로. 값을 비우면 기본값, ``[]`` 는 "하나도 없음" 입니다.
+
+    ``api_paths: /api/`` 처럼 목록 대신 문자열 하나를 쓰면 글자 단위로 쪼개져
+    모든 요청이 걸리므로 거절합니다.
+    """
+    value = (cfg or {}).get(key)
+    if _yaml_missing(value):
+        return default
+    if not isinstance(value, list) or not all(isinstance(v, str) and v.strip() for v in value):
+        raise ValueError(
+            f"{label} 는 문자열 목록이어야 합니다. 예) [\"/api/\"]. 지금 값: {value!r}"
+        )
+    return tuple(v.strip() for v in value)
+
+
 def _build_accounts(raw_accounts: dict) -> dict[str, Account]:
     accounts: dict[str, Account] = {}
     for role, spec in (raw_accounts or {}).items():
@@ -355,6 +378,13 @@ def load_config(
             f"사용 가능: {', '.join(SUPPORTED_BROWSERS)}"
         )
 
+    headed_window = _env_str("HEADED_WINDOW", _yaml_str(merged, "headed_window", "fixed")).lower()
+    if headed_window not in HEADED_WINDOWS:
+        raise ValueError(
+            f"headed_window (또는 환경변수 HEADED_WINDOW) 값이 올바르지 않습니다: {headed_window!r}. "
+            f"사용 가능: {', '.join(HEADED_WINDOWS)}"
+        )
+
     resolved_headless = _env_bool("HEADLESS", _yaml_bool(merged, "headless", True))
     if headed:                       # --headed 는 어떤 설정보다 우선
         resolved_headless = False
@@ -382,6 +412,7 @@ def load_config(
             "VIEWPORT_WIDTH", _yaml_int(viewport, "width", 1920, "viewport.width")),
         viewport_height=_env_int(
             "VIEWPORT_HEIGHT", _yaml_int(viewport, "height", 1080, "viewport.height")),
+        headed_window=headed_window,
         locale=_env_str("LOCALE", _yaml_str(merged, "locale", "ko-KR")),
         timezone=_env_str("TIMEZONE", _yaml_str(merged, "timezone", "Asia/Seoul")),
         ignore_https_errors=_env_bool(
@@ -394,6 +425,7 @@ def load_config(
                                     _yaml_bool(report_cfg, "show_triggered_by", True,
                                                "report.show_triggered_by")),
         open_report=_env_bool("OPEN_REPORT", open_report_default),
+        api_paths=_yaml_str_list(report_cfg, "api_paths", RunConfig.api_paths, "report.api_paths"),
         retries=_env_int("RETRIES", _yaml_int(merged, "retries", 0)),
         artifacts_keep_days=_env_int("ARTIFACTS_KEEP_DAYS",
                                      _yaml_int(artifacts_cfg, "keep_days", 14,

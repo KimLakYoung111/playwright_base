@@ -57,7 +57,7 @@ def yaml_config(monkeypatch: pytest.MonkeyPatch):
                     # 문자열 설정. 여기 빠지면 .env 의 값이 yaml 경로를 덮어
                     # "빈 값이면 기본값" 테스트가 아무것도 검증하지 못한다.
                     "PROJECT_NAME", "BASE_URL", "API_BASE_URL", "LOCALE", "TIMEZONE",
-                    "TEST_ID_ATTRIBUTE", "BROWSER",
+                    "TEST_ID_ATTRIBUTE", "BROWSER", "HEADED_WINDOW",
                     "SCREENSHOT_MODE", "TRACE_MODE", "PAGE_HTML_MODE", "LOG_MODE"):
             monkeypatch.setenv(key, env.get(key, ""))
 
@@ -410,4 +410,51 @@ def test_evidence_mode_error_names_the_yaml_key(yaml_config, key: str, setting: 
     """
     yaml_config({"evidence": {key: "alwyas"}})
     with pytest.raises(ValueError, match=setting.replace(".", r"\.")):
+        load_config(env="staging")
+
+
+# ---------------------------------------------------------------------------
+# report.api_paths — Step 별 API 응답 시간을 실을 경로 조각
+# ---------------------------------------------------------------------------
+
+@pytest.mark.tc_id("UNIT228")
+@pytest.mark.parametrize("report", [{}, {"api_paths": None}])
+def test_api_paths_default(yaml_config, report: dict) -> None:
+    """안 주거나 값을 비우면 기본값 /api/, /rest/ 를 쓴다."""
+    yaml_config({"report": report})
+    assert load_config(env="staging").api_paths == ("/api/", "/rest/")
+
+
+@pytest.mark.tc_id("UNIT229")
+def test_api_paths_empty_list_turns_recording_off(yaml_config) -> None:
+    """``[]`` 는 "기본값" 이 아니라 "기록하지 않음" 이다."""
+    yaml_config({"report": {"api_paths": []}})
+    assert load_config(env="staging").api_paths == ()
+
+
+@pytest.mark.tc_id("UNIT230")
+@pytest.mark.parametrize("value", ["/api/", ["/api/", 3], ["/api/", " "]])
+def test_api_paths_must_be_a_list_of_text(yaml_config, value: Any) -> None:
+    """목록 대신 문자열 하나를 쓰면 글자 단위로 쪼개져 모든 요청이 걸리므로 거절한다."""
+    yaml_config({"report": {"api_paths": value}})
+    with pytest.raises(ValueError, match=r"report\.api_paths"):
+        load_config(env="staging")
+
+
+# ---------------------------------------------------------------------------
+# headed_window — --headed 실행의 창 처리
+# ---------------------------------------------------------------------------
+
+@pytest.mark.tc_id("UNIT231")
+def test_headed_window_defaults_to_fixed(yaml_config) -> None:
+    """기본은 fixed (config 뷰포트 고정). 조사·테스트 뷰포트를 맞추는 규칙을 지킨다."""
+    yaml_config({})
+    assert load_config(env="staging").headed_window == "fixed"
+
+
+@pytest.mark.tc_id("UNIT232")
+def test_headed_window_typo_is_rejected(yaml_config) -> None:
+    """오타를 조용히 fixed 로 떨어뜨리면 켰다고 믿은 사람이 이유를 모른다."""
+    yaml_config({"headed_window": "maximised"})
+    with pytest.raises(ValueError, match="headed_window"):
         load_config(env="staging")

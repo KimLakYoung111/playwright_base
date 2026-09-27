@@ -57,8 +57,8 @@ def _collector(run_meta: dict[str, Any] | None = None) -> ResultCollector:
 
 
 @pytest.mark.tc_id("UNIT301")
-def test_schema_version_is_1_2() -> None:
-    assert _collector().to_dict()["schema_version"] == "1.2"
+def test_schema_version_is_1_5() -> None:
+    assert _collector().to_dict()["schema_version"] == "1.5"
 
 
 @pytest.mark.tc_id("UNIT302")

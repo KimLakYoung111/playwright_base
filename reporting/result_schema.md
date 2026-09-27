@@ -1,4 +1,4 @@
-# result.json 스키마 (schema_version 1.2)
+# result.json 스키마 (schema_version 1.5)
 
 `artifacts/<run_id>/report/result.json` 의 구조입니다.
 이 파일은 **표준 인터페이스**입니다. Test Runner UI(PySide6), 사내 Dashboard,
@@ -8,7 +8,7 @@ Slack/Email 알림, Trend Report, CI 연동은 모두 HTML 이 아니라 이 JSO
 
 ```jsonc
 {
-  "schema_version": "1.2",
+  "schema_version": "1.5",
 
   "run": {
     "run_id": "20260906_133000",        // artifacts 폴더 이름과 동일
@@ -96,8 +96,32 @@ Slack/Email 알림, Trend Report, CI 연동은 모두 HTML 이 아니라 이 JSO
         { "index": 1, "name": "로그인 페이지 접속",
           // --- schema 1.2 에서 추가 --- 명세서의 「기대결과 / 확인사항」 칸. 없으면 ""
           "expected": "로그인 화면이 뜬다",
-          "status": "passed", "duration": 0.62, "error": null }
+          "status": "passed", "duration": 0.62, "error": null,
+          // --- schema 1.3 에서 추가 --- 이 Step 에서 요청한 업무 API (config report.api_paths 에 맞는 XHR·fetch). 없으면 키 자체가 없음
+          "apis": [
+            { "tab": 2,                    // 요청을 보낸 탭. 열린 순서 1, 2 … (알 수 없으면 null)
+              "method": "POST", "path": "/api/v1/orders/bulk", "status": 200,
+              "ttfb_ms": 1915,             // 요청 ~ 첫 바이트
+              "total_ms": 1917,            // 요청 ~ 응답 완료
+              "end_step": 3 },             // 응답이 다른 Step 에서 끝났을 때만. 그 Step 번호
+            // --- schema 1.5 에서 추가 --- 응답을 못 받은 요청. status·ttfb_ms 가 null,
+            // total_ms 는 보낸 뒤 실패까지(또는 테스트 끝까지) 기다린 시간
+            { "tab": 1, "method": "POST", "path": "/api/v1/dashboard/summary",
+              "status": null, "ttfb_ms": null, "total_ms": 215300 },
+            { "tab": 1, "method": "GET", "path": "/rest/notifications",
+              "status": null, "ttfb_ms": null, "total_ms": 31,
+              "failure": "net::ERR_CONNECTION_RESET" }   // 요청이 실패했을 때만. 사유
+              // 화면 이동·탭 닫기로 브라우저가 취소한 요청(net::ERR_ABORTED)은 싣지 않음
+          ],
+          // --- schema 1.4 에서 추가 --- 이 Step 에서 실제로 확인한 값 (utils.steps.record_actual). 없으면 키 자체가 없음
+          "actual": ["합계금액 50,000 → 39,000 (−11,000)"] }
       ],
+
+      // --- schema 1.4 에서 추가 --- (utils.steps.record_data / record_change). 없으면 빈 객체
+      "data": { "주문번호": "ORD-0001", "고객": "ACME" },   // 테스트가 쓴 데이터
+      "changes": { "할인": "주문번호 ORD-0001: 할인 10,000 상태 '임시저장'" },
+                                        // 테스트가 대상 사이트에 남긴 변경. 되돌렸으면 지워져 있음.
+                                        // 실패한 테스트에 남아 있으면 정리가 필요할 수 있는 데이터
 
       "artifacts": {                    // 실행 폴더 기준 상대경로 (없으면 키 자체가 없음)
         "screenshot": "screenshots/TC001_test_login_chromium.png",

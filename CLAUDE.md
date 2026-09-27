@@ -11,6 +11,12 @@ Playwright + pytest 자동화 저장소입니다. **Claude 가 지킬 규칙**�
 | Claude 와 사람의 역할 분담 · MCP 사용법 | [가이드 9장](docs/AUTOMATION_GUIDE.md#9-claude-와-함께-쓰기) |
 | TC 명세 양식 (사람이 TC 를 쓸 때) | [`docs/TC_TEMPLATE.md`](docs/TC_TEMPLATE.md) |
 | 고객사에 전달할 실행 가이드 (양식) | [`docs/CLIENT_RUNBOOK.template.md`](docs/CLIENT_RUNBOOK.template.md) |
+| 지난 세션 이어받기 (핸드오프) | [`HANDOFF.md`](HANDOFF.md) |
+
+**핸드오프는 루트 `HANDOFF.md` 에만 씁니다.** `/handoff` 스킬이 OS 임시 폴더에 저장하라고
+해도 이 저장소에서는 이 규칙이 우선입니다 — 임시 폴더는 디스크 정리로 사라지고, 다음
+세션이 저장소 안만 찾다가 못 찾습니다. 최신 세션을 맨 위에 두고 이전 기록은 아래로
+내립니다.
 
 ---
 

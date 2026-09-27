@@ -28,5 +28,8 @@ pytest-xdist>=3.5,<4.0
 # Retry (기본 0회, CI 에서만 사용 권장)
 pytest-rerunfailures>=14.0
 
+# 같은 테스트를 N번 반복 실행 (pytest --count N, 실행 가이드용)
+pytest-repeat>=0.9,<1.0
+
 # API 사전조건 / 사후처리
 requests>=2.31,<3.0

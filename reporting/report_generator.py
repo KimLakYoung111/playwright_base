@@ -7,9 +7,11 @@ pytest-html 이 만드는 pytest_report.html 은 자동화 담당자용,
 from __future__ import annotations
 
 import json
+import re
 import threading
 import webbrowser
 from pathlib import Path
+from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
@@ -93,6 +95,141 @@ def _artifact_links(artifacts: dict[str, str]) -> list[dict[str, str]]:
     return links
 
 
+# ----------------------------------------------------------------------
+# 실패 요약 (화면 표시용. result.json 에는 넣지 않습니다)
+# ----------------------------------------------------------------------
+#: Playwright 동작 이름 → 리포트에 쓸 말
+_ACTION_NAMES = {
+    "click": "클릭", "dblclick": "더블클릭", "fill": "입력", "type": "입력", "pressSequentially": "입력",
+    "press": "키 입력", "check": "체크", "uncheck": "체크 해제", "setChecked": "체크",
+    "selectOption": "선택", "hover": "마우스 올리기", "waitFor": "대기", "waitForSelector": "대기",
+    "goto": "페이지 이동", "setInputFiles": "파일 올리기",
+}
+#: 값을 비교하는 expect → 기대값 앞에 붙일 말 (소문자로 찾음)
+_VALUE_VERBS = {"have text": "", "contain text": "포함 ", "have count": "건수 ", "have value": "입력값 ",
+                "have attribute": "속성 "}
+#: 상태를 보는 expect → 말
+_STATE_VERBS = {"be visible": "화면에 보임", "be hidden": "화면에서 사라짐", "be enabled": "사용 가능",
+                "be disabled": "사용 불가", "be checked": "체크됨", "be empty": "비어 있음",
+                "be attached": "화면에 있음", "be editable": "입력 가능", "be focused": "선택됨"}
+
+_EXPECT_HEAD = re.compile(r"^(?:Locator|Page(?: title| URL)?|APIResponse) expected (?P<neg>not )?to "
+                          r"(?P<verb>.+?)(?: '(?P<value>.*)')?$")
+_ACTUAL = re.compile(r"(?s)^(?P<actual>.*?)(?:\nError: (?P<error>[^\n]*))?\s*Call log:")
+_WAIT_MS = re.compile(r"with timeout (\d+)ms")
+_WAITING_FOR = re.compile(r"waiting for (.+)")
+_ACTION_TIMEOUT = re.compile(r"\.(\w+): Timeout (\d+)ms exceeded")
+_REGEX_VALUE = re.compile(r"^re\.compile\('(.*)'\)$")
+
+
+def summarize_failure(test: dict[str, Any]) -> dict[str, Any] | None:
+    """실패를 한 줄로 요약합니다. 실패가 아니면 None.
+
+    ``{"kind": 유형, "step": 실패한 Step 번호(없으면 None), "text": 요약}``.
+    Reason 칸에 Playwright 원문(Call log, locator 내부 표현)이 그대로 나와 읽기 어려웠습니다
+    (2026-09-18 리포트 검토). 원문은 그 아래 traceback 칸에 그대로 남습니다.
+
+    유형은 **무엇이 일어났는지**만 나눕니다: 값 불일치 / 요소 없음 / 대기 시간 초과 / 조건 불충족 / 기타 오류.
+    제품 결함인지 테스트 문제인지는 사람이 판단합니다.
+    """
+    if test.get("status") not in FAILURE_STATUSES:
+        return None
+    message = ((test.get("error") or {}).get("message") or "").strip()
+    # 마지막으로 실패한 Step 입니다. Step 안에 Step 을 넣으면 바깥도 실패로 끝나는데 실제로 깨진 것은
+    # 나중에 시작한 안쪽이고, 앞에서 잡힌(pytest.raises 등) 실패보다 뒤의 실패가 테스트를 끝냈습니다.
+    step = next((s.get("index") for s in reversed(test.get("steps") or []) if s.get("status") == "failed"), None)
+    kind, text = _classify_failure(message)
+    return {"kind": kind, "step": step, "text": text}
+
+
+def _classify_failure(message: str) -> tuple[str, str]:
+    first = message.split("\n", 1)[0].strip()
+    wait = _WAIT_MS.search(message)
+    waited = f" ({_seconds(wait.group(1))} 대기)" if wait else ""
+    locator = _WAITING_FOR.search(message)
+    target = f" · {locator.group(1).strip()}" if locator else ""
+
+    head, found_actual, rest = message.partition("\nActual value: ")
+    if found_actual:                                   # expect(...) 실패
+        parts = _ACTUAL.match(rest)
+        actual = " ".join((parts.group("actual") if parts else rest).split())
+        missing = bool(parts and parts.group("error") and "not found" in parts.group("error"))
+        lines = [_without_type(line.strip()) for line in head.split("\n") if line.strip()]
+        standard = _EXPECT_HEAD.match(lines[0]) if lines else None
+        if standard:
+            if missing:
+                return "요소 없음", f"요소를 찾지 못함{target}{waited}"
+            return "값 불일치", f"기대 {_expected_text(standard)} · 실제 '{actual}'{waited}"
+        # expect(locator, "설명") 처럼 사람이 적은 문구는 그대로 씁니다.
+        custom = lines[0] if lines else ""
+        if missing:
+            return "요소 없음", f"{custom} · 요소를 찾지 못함{target}{waited}"
+        expected = next((line[len("Expected value: "):] for line in lines[1:]
+                         if line.startswith("Expected value: ")), "")
+        return "값 불일치", f"{custom}{f' · 기대 {expected}' if expected else ''} · 실제 '{actual}'{waited}"
+
+    timeout = _ACTION_TIMEOUT.search(first)
+    if "TimeoutError" in first and timeout:
+        action = _ACTION_NAMES.get(timeout.group(1), timeout.group(1))
+        return "대기 시간 초과", f"{action} {_seconds(timeout.group(2))} 안에 끝나지 않음{target}"
+    if first.startswith("AssertionError"):
+        # assert 문의 설명 문구. pytest 가 덧붙이는 assert 식 줄(둘째 줄부터)은 뺍니다.
+        return "조건 불충족", _without_type(first)
+    return "기타 오류", first
+
+
+def _expected_text(match: re.Match) -> str:
+    verb, value = match.group("verb"), match.group("value")
+    if value is None:
+        text = _STATE_VERBS.get(verb, verb)
+    else:
+        pattern = _REGEX_VALUE.match(value)
+        shown = f"패턴 '{pattern.group(1)}'" if pattern else f"'{value}'"
+        text = _VALUE_VERBS.get(verb.lower(), f"{verb} ") + shown
+    return text + (" 아님" if match.group("neg") else "")
+
+
+def _without_type(line: str) -> str:
+    """'AssertionError: 문구' → '문구'. 앞이 예외 이름이 아니면 그대로 둡니다."""
+    head, sep, rest = line.partition(": ")
+    return rest if sep and re.fullmatch(r"[\w.]+", head) else line
+
+
+def _seconds(ms: str) -> str:
+    return f"{int(ms) / 1000:g}초"
+
+
+def _display_step(step: dict[str, Any], fail: dict[str, Any] | None) -> dict[str, Any]:
+    """Step 표시용 복사본. result.json 이 쓰는 원본에 표시용 값을 섞지 않습니다.
+
+    API 최대 시간은 그 Step 안에서 끝난 호출로만 잽니다. 뒤 Step 에서 끝난 호출(로그인 때 시작한
+    약 12초짜리 대시보드 조회)까지 넣으면 짧은 Step 이 느린 것처럼 읽힙니다 (2026-09-18 리포트 검토).
+    """
+    shown = dict(step)
+    apis = step.get("apis") or []
+    answered = [api for api in apis if api.get("status") is not None]
+    done = [api["total_ms"] for api in answered if not api.get("end_step")]
+    shown["api_max_ms"] = max(done) if done else None
+    shown["api_carried"] = len(answered) - len(done)
+    shown["api_unanswered"] = len(apis) - len(answered)
+    if fail and step.get("status") == "failed" and step.get("index") == fail["step"]:
+        shown["error_summary"] = fail["text"]
+    return shown
+
+
+def unanswered_apis(test: dict[str, Any]) -> list[dict[str, Any]]:
+    """실패한 TC 에서 응답을 받지 못한 호출 (schema 1.5). 통과한 TC 는 빈 목록.
+
+    요청한 Step 과 실패한 Step 이 다를 수 있어서 모든 Step 에서 모읍니다 (1단계 로그인 때
+    보낸 대시보드 조회가 끝내 응답하지 않았고, 그동안 로딩 가림막이 2단계 메뉴 클릭을 막았습니다).
+    """
+    if test.get("status") not in FAILURE_STATUSES:
+        return []
+    return [{"step": step.get("index"), "path": api.get("path"), "total_ms": api.get("total_ms") or 0,
+             "failure": api.get("failure")}
+            for step in test.get("steps") or [] for api in step.get("apis") or [] if api.get("status") is None]
+
+
 def render_html(collector: ResultCollector, path: Path) -> Path:
     data = collector.to_dict()
 
@@ -104,6 +241,9 @@ def render_html(collector: ResultCollector, path: Path) -> Path:
         test["trace_links"] = [l for l in links if l["kind"] == "trace"]
         test["duration_text"] = format_seconds(test["duration"])
         test["is_failure"] = test["status"] in FAILURE_STATUSES
+        test["fail"] = summarize_failure(test)
+        test["unanswered"] = unanswered_apis(test)
+        test["steps"] = [_display_step(step, test["fail"]) for step in test.get("steps") or []]
 
     data["failed_tests"] = [t for t in data["tests"] if t["is_failure"]]
     data["duration_text"] = format_duration(data["summary"]["duration"])
