@@ -1,6 +1,98 @@
-# HANDOFF: 리포트 자동 열기 · 기대결과 표시(schema 1.2) · spec_pending (2026-09-09)
+# HANDOFF: aj-networks 에서 공통 기능 가져오기 (schema 1.5) (2026-09-27)
 
 > 최신 세션이 맨 위입니다. 아래로 갈수록 과거 기록입니다.
+
+---
+
+## Goal
+
+고객사 프로젝트 `aj-networks` 가 Base 파일을 직접 고쳐 쓴 것 중 **공통 기능을 Base 로 올려받기.**
+aj 는 이 저장소 `06572ff` 에서 시작했고 그 뒤 Base 는 바뀐 게 없어서, 두 저장소 차이는 전부 aj 쪽 변경이었습니다.
+
+## Current Status: 브랜치 `feat/port-aj-report-evidence` — 커밋·푸시됨, `main` 머지 전
+
+코드 커밋 1개(`feat: aj-networks 에서 ...`) + 이 핸드오프 커밋. 위치는 `git log --oneline main..feat/port-aj-report-evidence`.
+**다음 세션의 첫 할 일: 아래 Remaining Work 1번(main 머지 여부 결정).**
+
+### What Was Done
+
+| 가져온 것 | 파일 |
+|---|---|
+| 실패 Screenshot · '마지막 URL' = **실패한 탭**, **Step 이 실패한 순간** | 루트 `conftest.py` page fixture, `utils/steps.py`, `utils/testmeta.py`, `test_failed_page.py` |
+| `record_actual` / `record_data` / `record_change` (schema 1.4) | `utils/steps.py`, `result_collector.py`, `test_steps_record.py` |
+| 실패 내용 한 줄 요약 · 인쇄용 TC 목록 · 한글화 · Step 별 API 표 (schema 1.3·1.5) | `reporting/*`, `test_report_render.py` |
+| 업무 API 응답 시간 수집 | 루트 `conftest.py` `context` fixture (aj 는 `tests/conftest.py` 에 있었음) |
+| `--headed` 창 최대화 · 뷰포트 해제 | 루트 `conftest.py`. **Base 는 설정으로만 켬** (아래 결정) |
+| 문서 · CLAUDE.md 핸드오프 규칙 · `pytest-repeat` | README, 가이드 6장, `CLIENT_RUNBOOK.template.md` |
+
+- **고객사 값(통합청구번호·고객사명·API 경로 등 약 45줄)을 중립 값(`ORD-0001`, `ACME`, `/api/v1/orders/...`)으로 바꿈.** Public 저장소입니다.
+- aj 전용인 브라우저 경고창 처리(전자결재 예외)는 가져오지 않았습니다.
+
+### 이번 회차 결정
+
+1. **API 경로 조건은 설정** `report.api_paths` (기본 `["/api/", "/rest/"]`, `[]` 면 기록 안 함).
+2. **`headed_window: fixed | maximized`**, 기본 `fixed`. aj 방식(늘 창 크기)은 1920 보다 작은 모니터에서
+   headless 와 DOM 이 달라져 CLAUDE.md 「조사 뷰포트 = config 뷰포트」 규칙과 부딪힙니다. aj 는 `maximized` 로 켜서 씁니다.
+   `--device` 뷰포트는 어느 쪽이든 지킵니다 (aj 버전은 지웠음).
+3. `/code-review high` 지적 중 5(재시도 때 옛 본문 종료 시각)·9(실패 단계 = 마지막 실패 Step)·10(기본값 중복)은 고침.
+
+## Remaining Work
+
+1. **`main` 머지** — 브랜치만 푸시했습니다. PR 로 올릴지 fast-forward 할지 사용자에게 물어보세요.
+   머지 뒤 `git fetch --prune` (4회차 Gotcha ⑥).
+2. **aj-networks 로 내려보내기** (머지 뒤). 공통 파일 복사 뒤 aj `tests/conftest.py` 의 API 수집(`context` 의 request/response 부분,
+   `pytest_runtest_call`)과 `browser_*_args` 를 **지워야 합니다** (루트로 옮겨 와서 두 번 돕니다). 경고창 처리는 남깁니다.
+   aj `config/default.yaml` 에 `headed_window: maximized` 추가.
+3. **코드 리뷰 지적 중 미해결 (aj 에서 물려받은 한계, 커밋 뒤 따로 하기로 함)**
+   - 1: `pytest.raises` 등으로 **잡힌** Step 실패에도 실패 순간 hook 이 불려 소모됨 → 진짜 실패 때 Screenshot 없음, 마지막 URL 이 옛 Step 것
+   - 4: `role_page`(별도 Context)에서 Step 이 실패해도 기본 `page` 의 탭을 찍음
+   - 6: 응답 헤더는 왔는데 본문이 끝나기 전에 테스트가 끝나면(`responseEnd=-1`) 그 호출이 **통째로 빠짐** (200 응답도). 실측 2/2 재현
+   - 3·7·8: Step 사이 요청이 끝난 Step 에 붙음 / 응답 없는 호출의 대기 시간이 이벤트 도착 기준이라 짧게 잡힘 / API 탭 번호(닫힌 탭 포함)와 Evidence `_tabN`(열린 탭만) 어긋남
+4. 이전 회차 남은 일(아래)은 그대로입니다. `ci_summary` cp949 크래시는 `107dc94` 에서 이미 고쳐졌습니다.
+
+## Verification Commands
+
+```bash
+# 2026-09-27 실측 (이 브랜치, 커밋 전)
+pytest                    # 30 passed, 247 deselected  (24s)
+pytest -n 2               # 30 passed                  (18s)
+pytest -m failure_demo    # 3 failed, 1 skipped        (11s)  <- 의도된 실패
+pytest -m base_unit       # 243 passed, 34 deselected  (4s)
+```
+
+## What Didn't Work / Gotchas
+
+- **`pytest -k UNIT814` 는 아무것도 고르지 않습니다.** `tc_id` 값은 `-k` 대상이 아닙니다(종료 코드 5).
+  변이 테스트에서 "코드 ≠ 0 이면 잡음" 으로 판정하면 **0개 실행이 전부 '잡음' 으로 보입니다.** 테스트 함수 이름으로 고르고 종료 코드 1 만 인정하세요.
+- 일괄 치환으로 숫자 리터럴(`2601042245`)이 따옴표 없는 `ORD-0001` 이 되어 SyntaxError. 치환 뒤 반드시 수집부터 돌려 볼 것.
+- Git Bash 에서 `cat > 파일` 을 heredoc 앞에 잘못 두면 입력을 기다리며 멈춥니다. 스크립트는 Write 로 만들고 `</dev/null` 을 붙이세요.
+- httpbin(`https://httpbin.org/anything/api/ping`)을 `page.evaluate("fetch(...)")` 로 부르면 예제 사이트에서도 API 표를 실측할 수 있습니다.
+
+## Key Files
+
+| role | path |
+|---|---|
+| API 수집 · 실패 탭 · headed 창 처리 | 루트 `conftest.py` (`context` fixture, `_failed_page`, `browser_*_args`) |
+| 새 설정 2개 | `config/default.yaml` 의 `headed_window`, `report.api_paths` / `utils/config.py` |
+| 확인값·데이터·변경 기록 API | `utils/steps.py` |
+| 실패 요약 | `reporting/report_generator.py::summarize_failure` |
+| 외부 계약 (1.5) | `reporting/result_schema.md` |
+| 새 회귀 테스트 | `tests/unit/test_browser_args.py`(UNIT814~818), `test_config_report.py`(UNIT228~232), `test_report_render.py`(UNIT442) |
+| aj 쪽 원본 | `../aj-networks` (HANDOFF (35) 「Base 로 옮길 목록」) |
+
+## 다음 세션 추천 스킬
+
+- **`superpowers:test-driven-development`** — 남은 일 3번(리뷰 지적 1·4·6) 수정. 가짜 탭·가짜 요청으로 RED 먼저.
+- **`/code-review high`** — aj 로 내려보낸 뒤, 그리고 3번을 고친 뒤.
+- **`superpowers:verification-before-completion`** — 변이 테스트는 `-k 함수이름` + 종료 코드 1 만 인정 (위 Gotcha).
+
+## Uncommitted Changes
+
+없습니다. `.venv/`·`artifacts/` 는 gitignore. 변이·치환 스크립트는 세션 scratchpad 에만 있습니다(커밋 대상 아님).
+
+---
+
+# HANDOFF: 리포트 자동 열기 · 기대결과 표시(schema 1.2) · spec_pending (2026-09-09)
 
 ---
 
